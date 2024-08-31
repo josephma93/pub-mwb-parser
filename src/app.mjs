@@ -1,5 +1,5 @@
 import logger from "./core/logger.mjs";
-import {fetchThisWeekMeetingHtml, fetchThisWeekWatchtowerArticleHtml} from "./services/fetch_content.mjs";
+import {fetchThisWeekMeetingHtml, fetchThisWeekWatchtowerArticleHtml} from "./services/html_retriever.mjs";
 
 logger.info("Starting app");
 
