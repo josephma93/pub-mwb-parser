@@ -6,9 +6,10 @@ import logger from "../core/logger.mjs";
 const log = logger.child(logger.bindings());
 
 /**
- * Fetches the HTML content from the given URL.
- * @param {string} url The URL to fetch.
- * @returns {Error| string} An Error object if any error occurs, or the HTML content.
+ * Fetches HTML content from the specified URL.
+ * @param {string} url - The URL from which to fetch HTML content.
+ * @returns {Promise<string | Error>} A promise that resolves to the HTML content as a string,
+ *     or an Error object if the request fails or an error occurs during processing.
  */
 async function _getHtmlContent(url) {
     const startTime = performance.now();
@@ -62,14 +63,9 @@ async function _getHtmlContent(url) {
 }
 
 /**
- * Exports a function that fetches HTML content with error handling.
- *
- * @function getHtmlContent
- * @description Fetches HTML content from a URL and handles any errors that occur.
- * @returns {[Error | null, string | null]} A tuple with the error (if any) and the HTML content.
- *     If the request is successful, the first element of the tuple will be null and the second
- *     element will be the HTML content. If the request fails, the first element of the tuple will
- *     be an Error object and the second element will be null.
+ * Fetches HTML content from the specified URL with error handling.
+ * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is html content (or null if an error occurred).
  * @see _getHtmlContent
  */
 export const getHtmlContent = withErrorHandling(_getHtmlContent);
@@ -77,16 +73,19 @@ export const getHtmlContent = withErrorHandling(_getHtmlContent);
 
 /**
  * Fetches the landing HTML from the WOL website.
- * @returns {Error| string} An Error object if any error occurs, or the HTML content.
+ * @returns {Promise<Error | string>} A promise that resolves to an Error object if any error occurs,
+ *     or the HTML content as a string if successful.
  */
 async function _fetchLandingHtml() {
     const baseUrl = Constants.BASE_URL;
 
     log.info(`Fetching landing HTML from ${baseUrl}`);
-    let [err, html] = await getHtmlContent(baseUrl);
+    let [err, strOrNull] = await getHtmlContent(baseUrl);
     if (err) {
         return err;
     }
+    /** @type {string} */
+    let html = strOrNull;
 
     const $ = cheerio.load(html);
     const selector = 'link[hreflang="es"]';
@@ -103,35 +102,37 @@ async function _fetchLandingHtml() {
     if (err) {
         return err;
     }
+    /** @type {string} */
+    html = strOrNull;
 
     return html;
 }
 
 /**
- * Fetches the landing HTML from the WOL website.
- * @returns {[Error | null, string | null]} A tuple with the error (if any) and the HTML content.
- *     If the request is successful, the first element of the tuple will be null and the second
- *     element will be the HTML content. If the request fails, the first element of the tuple will
- *     be an Error object and the second element will be null.
+ * Fetches the landing HTML from the WOL website with error handling.
+ * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is html content (or null if an error occurred).
  * @see _fetchLandingHtml
  */
 export const fetchLandingHtml = withErrorHandling(_fetchLandingHtml);
 
 /**
- * Fetches this week's meeting HTML from the WOL website, given the base HTML content if provided or fetching
- * the landing HTML as default.
- * @param {string} [baseHtml] The base HTML content to parse. If not provided, the landing HTML will
- *     be fetched and used as default value.
- * @returns {Error| string} An Error object if any error occurs, or the HTML content.
+ * Fetches this week's meeting HTML from the WOL website, given the base HTML content if provided or by fetching
+ * the landing HTML as a default.
+ * @param {string} [baseHtml] - The base HTML content to parse.
+ *      If not provided, the landing HTML will be fetched and used as the default value.
+ * @returns {Promise<string | Error>} A promise that resolves to either the HTML content as a string or
+ *     an Error object if any error occurs.
  */
 async function _fetchThisWeekMeetingHtml(baseHtml) {
     if (!baseHtml) {
         log.debug("Base HTML missing, fetching landing HTML as default");
-        const [err, html] = await fetchLandingHtml();
+        const [err, strOrNull] = await fetchLandingHtml();
         if (err) {
             return err;
         }
-        baseHtml = html;
+        /** @type {string} */
+        baseHtml = strOrNull;
     }
 
     log.debug("Parsing base HTML");
@@ -147,32 +148,29 @@ async function _fetchThisWeekMeetingHtml(baseHtml) {
     }
 
     log.info(`Fetching today's HTML content from ${Constants.BASE_URL}${todayNav}`);
-    let [err, html] = await getHtmlContent(Constants.BASE_URL + todayNav);
+    let [err, strOrNull] = await getHtmlContent(Constants.BASE_URL + todayNav);
     if (err) {
         return err;
     }
-
-    return html;
+    return strOrNull;
 }
 
 /**
- * Fetches the today's HTML from the WOL website, given the base HTML content if provided or fetching
- * the landing HTML as default.
- * @param {string} [baseHtml] The base HTML content to parse. If not provided, the landing HTML will
- *     be fetched and used as default value.
- * @returns {[Error | null, string | null]} A tuple with the error (if any) and the HTML content.
- *     If the request is successful, the first element of the tuple will be null and the second
- *     element will be the HTML content. If the request fails, the first element of the tuple will
- *     be an Error object and the second element will be null.
+ * Fetches this week's meeting HTML from the WOL website with error handling.
+ * @param {string} [baseHtml] - The base HTML content to parse.
+ *      If not provided, the landing HTML will be fetched and used as the default value.
+ * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is html content (or null if an error occurred).
  * @see _fetchThisWeekMeetingHtml
  */
 export const fetchThisWeekMeetingHtml = withErrorHandling(_fetchThisWeekMeetingHtml);
 
 /**
  * Extracts the URL of the weekly watchtower article from the given HTML content of this week's meeting program.
- * @param {string} [thisWeekMeetingProgram] The HTML content of this week's meeting program.
- *     If not provided, the HTML content will be fetched and used as default value.
- * @returns {Error| string} An Error object if any error occurs, or the string with the href value.
+ * @param {string} [thisWeekMeetingProgram] - The HTML content of this week's meeting program.
+ *     If not provided, the HTML content will be fetched and used as the default value.
+ * @returns {Promise<string | Error>} A promise that resolves to either a string containing the path of the URL of the
+ *      weekly watchtower article, or an Error if the extraction fails.
  */
 async function _extractWatchtowerArticleUrl(thisWeekMeetingProgram) {
     if (!thisWeekMeetingProgram) {
@@ -181,6 +179,7 @@ async function _extractWatchtowerArticleUrl(thisWeekMeetingProgram) {
         if (err) {
             return err;
         }
+        /** @type {string} */
         thisWeekMeetingProgram = html;
     }
     log.debug("Parsing this week's HTML");
@@ -200,23 +199,22 @@ async function _extractWatchtowerArticleUrl(thisWeekMeetingProgram) {
 /**
  * Extracts the URL of the weekly watchtower article from the given HTML content of
  * this week's meeting program.
- * @param {string} [thisWeekMeetingProgram] The HTML content of this week's meeting program.
- *     If not provided, the HTML content will be fetched from the WOL website.
- * @returns {[Error | null, string | null]} A tuple with the error (if any) and the URL of
- *     the weekly watchtower article. If the request is successful, the first element of the
- *     tuple will be null and the second element will be the URL of the weekly watchtower
- *     article. If the request fails, the first element of the tuple will be an Error object
- *     and the second element will be null.
+ * @param {string} [thisWeekMeetingProgram] - The HTML content of this week's meeting program.
+ *      If the HTML content is not provided, it will be fetched from the WOL website.
+ * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is the URL of the weekly
+ *      watchtower article (or null if an error occurred).
  * @see _extractWatchtowerArticleUrl
  */
 const extractWatchtowerArticleUrl = withErrorHandling(_extractWatchtowerArticleUrl);
 
 /**
- * Fetches the weekly watchtower article HTML from the WOL website, given the weekly meeting
- * program HTML content if provided or fetching the landing HTML as default.
- * @param {string} [thisWeekMeetingProgram] The this week's meeting program HTML content to parse.
- *     If not provided, the weekly meeting HTML will be fetched as default.
- * @returns {Error| string} An Error object if any error occurs, or the HTML content.
+ * Fetches the weekly Watchtower article HTML from the WOL website, using the provided meeting
+ * program HTML content or fetching the default landing page if not provided.
+ * @param {string} [thisWeekMeetingProgram] - The HTML content of this week's meeting program.
+ *     If not provided, the function fetches the default weekly meeting HTML.
+ * @returns {Promise<Error | string>} A promise that resolves to the HTML content as a string,
+ *     or an Error object if an error occurs during the process.
  */
 export async function _fetchThisWeekWatchtowerArticleHtml(thisWeekMeetingProgram) {
     let [err, watchtowerArticleUrl] = await extractWatchtowerArticleUrl(thisWeekMeetingProgram);
@@ -245,14 +243,10 @@ export async function _fetchThisWeekWatchtowerArticleHtml(thisWeekMeetingProgram
 }
 
 /**
- * Fetches the weekly watchtower article HTML from the WOL website, given the weekly meeting
- * program HTML content if provided or fetching the landing HTML as default.
- * @param {string} [thisWeekMeetingProgram] The this week's meeting program HTML content to parse.
- *     If not provided, the weekly meeting HTML will be fetched as default.
- * @returns {[Error | null, string | null]} A tuple with the error (if any) and the HTML content.
- *     If the request is successful, the first element of the tuple will be null and the second
- *     element will be the HTML content. If the request fails, the first element of the tuple will
- *     be an Error object and the second element will be null.
+ * Fetches the weekly Watchtower article HTML with error handling.
+ * @param {string} [thisWeekMeetingProgram] - The HTML content of this week's meeting program.
+ * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is html content (or null if an error occurred).
  * @see _fetchThisWeekWatchtowerArticleHtml
  */
 export const fetchThisWeekWatchtowerArticleHtml = withErrorHandling(_fetchThisWeekWatchtowerArticleHtml);
