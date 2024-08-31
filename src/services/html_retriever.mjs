@@ -22,39 +22,39 @@ async function _getHtmlContent(url) {
         'Referer': Constants.BASE_URL,
     };
 
-    log.debug(`Sending GET request to ${url} with headers:`, headers);
+    log.debug(`Sending GET request to [${url}] with headers: [${JSON.stringify(headers)}]`);
 
     try {
         const response = await fetch(url, { headers });
         const elapsedTime = (performance.now() - startTime) / 1000;
 
         if (!response.ok) {
-            const errorMessage = `Failed to fetch ${url} with status ${response.status} (${response.statusText}) after ${elapsedTime.toFixed(4)} seconds. Response headers: ${JSON.stringify(response.headers.raw())}`;
+            const errorMessage = `Failed to fetch [${url}] with status [${response.status}] (${response.statusText}) after [${elapsedTime.toFixed(4)}] seconds. Response headers: [${JSON.stringify(response.headers.raw())}]`;
             log.error(errorMessage);
             return new Error(errorMessage);
         }
 
         const html = await response.text();
-        log.info(`Received HTML content from ${url} with status code 200 in ${elapsedTime.toFixed(4)} seconds. HTML length: ${html.length}`);
+        log.info(`Received HTML content from [${url}] with status code 200 in [${elapsedTime.toFixed(4)}] seconds. HTML length: [${html.length}]`);
         if (elapsedTime > 10) {
-            log.warn(`Operation took ${elapsedTime.toFixed(4)} seconds`);
+            log.warn(`Operation took [${elapsedTime.toFixed(4)}] seconds`);
         }
         return html;
 
     } catch (error) {
         const elapsedTime = (performance.now() - startTime) / 1000;
-        let errorMessage = `Request to ${url} failed after ${elapsedTime.toFixed(4)} seconds.`;
+        let errorMessage = `Request to [${url}] failed after [${elapsedTime.toFixed(4)}] seconds.`;
 
         if (error.name === 'TypeError') {
-            errorMessage += ` Network or DNS error occurred: ${error.message}`;
+            errorMessage += ` Network or DNS error occurred: [${error.message}]`;
         } else if (error.code === 'ENOTFOUND') {
-            errorMessage += ` DNS lookup failed: ${error.message}`;
+            errorMessage += ` DNS lookup failed: [${error.message}]`;
         } else if (error.code === 'ETIMEDOUT') {
-            errorMessage += ` Request timed out: ${error.message}`;
+            errorMessage += ` Request timed out: [${error.message}]`;
         } else if (error instanceof SyntaxError) {
-            errorMessage += ` Failed to parse response as HTML: ${error.message}`;
+            errorMessage += ` Failed to parse response as HTML: [${error.message}]`;
         } else {
-            errorMessage += ` Unexpected error occurred: ${error.message}`;
+            errorMessage += ` Unexpected error occurred: [${error.message}]`;
         }
 
         log.error(errorMessage);
@@ -70,7 +70,6 @@ async function _getHtmlContent(url) {
  */
 export const getHtmlContent = withErrorHandling(_getHtmlContent);
 
-
 /**
  * Fetches the landing HTML from the WOL website.
  * @returns {Promise<Error | string>} A promise that resolves to an Error object if any error occurs,
@@ -79,7 +78,7 @@ export const getHtmlContent = withErrorHandling(_getHtmlContent);
 async function _fetchLandingHtml() {
     const baseUrl = Constants.BASE_URL;
 
-    log.info(`Fetching landing HTML from ${baseUrl}`);
+    log.info(`Fetching landing HTML from [${baseUrl}]`);
     let [err, strOrNull] = await getHtmlContent(baseUrl);
     if (err) {
         return err;
@@ -90,15 +89,16 @@ async function _fetchLandingHtml() {
     const $ = cheerio.load(html);
     const selector = 'link[hreflang="es"]';
     const hrefLangEs = $(selector).attr('href');
-    log.debug(`Value for hrefLangEs: ${hrefLangEs}`);
+    log.debug(`Value for hrefLangEs: [${hrefLangEs}]`);
 
     if (!hrefLangEs) {
-        log.error(`No href found for ${selector}`);
+        log.error(`No href found for [${selector}]`);
         return new Error("No href found, website structure may have changed");
     }
 
-    log.info(`Fetching HTML content from ${baseUrl}${hrefLangEs}`);
-    [err, html] = await getHtmlContent(baseUrl + hrefLangEs);
+    const landingForLanguage = `${baseUrl}${hrefLangEs}`;
+    log.info(`Fetching HTML content from [${landingForLanguage}]`);
+    [err, html] = await getHtmlContent(landingForLanguage);
     if (err) {
         return err;
     }
@@ -141,14 +141,15 @@ async function _fetchThisWeekMeetingHtml(baseHtml) {
     log.debug("Selecting today's navigation link");
     const selector = '#menuToday .todayNav';
     const todayNav = $(selector).attr('href');
-    log.debug(`Value for href: ${todayNav}`);
+    log.debug(`Value for href: [${todayNav}]`);
     if (!todayNav) {
-        log.warn(`No href found for ${selector}`);
+        log.warn(`No href found for [${selector}]`);
         return new Error("No href found, website structure may have changed");
     }
 
-    log.info(`Fetching today's HTML content from ${Constants.BASE_URL}${todayNav}`);
-    let [err, strOrNull] = await getHtmlContent(Constants.BASE_URL + todayNav);
+    const todayHtmlUrl = Constants.BASE_URL + todayNav;
+    log.info(`Fetching today's HTML content from [${todayHtmlUrl}]`);
+    let [err, strOrNull] = await getHtmlContent(todayHtmlUrl);
     if (err) {
         return err;
     }
@@ -187,7 +188,7 @@ async function _extractWatchtowerArticleUrl(thisWeekMeetingProgram) {
     const selector = '.todayItem.pub-w:nth-child(2) .itemData a';
 
     const pubWItem = $(selector).attr('href');
-    log.debug(`Value for href: ${pubWItem}`);
+    log.debug(`Value for href: [${pubWItem}]`);
     if (!pubWItem) {
         log.error(`No href found for ${selector}`);
         return new Error("No href found, website structure may have changed");
@@ -222,7 +223,7 @@ export async function _fetchThisWeekWatchtowerArticleHtml(thisWeekMeetingProgram
         return err;
     }
 
-    log.info(`Fetching weekly HTML content from ${watchtowerArticleUrl}`);
+    log.info(`Fetching weekly HTML content from [${watchtowerArticleUrl}]`);
     let html;
     [err, html] = await getHtmlContent(watchtowerArticleUrl);
     if (err) {
@@ -234,11 +235,11 @@ export async function _fetchThisWeekWatchtowerArticleHtml(thisWeekMeetingProgram
     const selector = '#article';
     const article = $(selector);
     if (!article.length) {
-        log.error(`No article found for ${selector}`);
+        log.error(`No article found for [${selector}]`);
         return new Error("No article found, website structure may have changed");
     }
 
-    log.info(`Successfully fetched and extracted this week's watchtower article HTML from ${watchtowerArticleUrl}`);
+    log.info(`Successfully fetched and extracted this week's watchtower article HTML from [${watchtowerArticleUrl}]`);
     return article.html();
 }
 
