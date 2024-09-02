@@ -1,12 +1,29 @@
 import * as cheerio from 'cheerio';
 
 /**
+ * @param {any} value
+ * @returns {string}
+ */
+function enforceIsString(value) {
+    return (typeof value === 'string' ? value : '');
+}
+
+/**
  * Trims, and removes all non-breaking space characters from the given text.
  * @param {any} txt
  * @returns {string} Cleaned text or empty string if the given value is not a string.
  */
 export function cleanText(txt) {
-    return (typeof txt === 'string' ? txt : '').trim().replaceAll(' ', ' ');
+    return enforceIsString(txt).trim().replaceAll(' ', ' ');
+}
+
+/**
+ * Collapses consecutive line breaks with a single line break in the given text.
+ * @param {any} txt
+ * @returns {string} Collapsed text or empty string if the given value is not a string.
+ */
+export function collapseConsecutiveLineBreaks(txt) {
+    return enforceIsString(txt).replaceAll(/\n+/g, '\n');
 }
 
 /**
@@ -15,7 +32,11 @@ export function cleanText(txt) {
  */
 export function parsePubW(content) {
     const $ = cheerio.load(content);
-    return $('p.sb').map((i, el) => cleanText($(el).text()).trim()).get().join('\n');
+    return $('p.sb').map((i, el) => {
+        const $el = $(el);
+        $el.find(`.parNum`).remove();
+        return cleanText($el.text());
+    }).get().join('\n');
 }
 
 /**
@@ -25,6 +46,9 @@ export function parsePubW(content) {
 export function parsePubNwtsty(content) {
     const $ = cheerio.load(content);
     $('a.fn, a.b').remove();
+    $('.sl, .sz').each((i, el) => {
+        $(el).append(`<span> </span>`);
+    })
     return cleanText($.text());
 }
 
@@ -34,7 +58,7 @@ export function parsePubNwtsty(content) {
  */
 export function parseDefault(content) {
     const $ = cheerio.load(content);
-    return cleanText($.text()).replaceAll(/\n+/g, '\n');
+    return collapseConsecutiveLineBreaks(cleanText($.text()));
 }
 
 /**

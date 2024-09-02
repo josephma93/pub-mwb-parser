@@ -13,7 +13,7 @@ if (err) {
     if (err) {
         logger.error(`Failed to extract this week's program: ${err.message}`);
     } else {
-        console.log(`This week's program: [${JSON.stringify(program)}]`);
+        console.log(`This week's program: [${JSON.stringify(program, null, 2)}]`);
     }
 }
 

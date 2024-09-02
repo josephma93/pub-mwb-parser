@@ -104,7 +104,7 @@ export function detectReferenceDataType(itemData) {
 /**
  * Builds a PublicationRefData object from the given raw reference data.
  * @param {Object} rawReferenceData A JSON object that meets expected parsing requirements.
- * @returns {PublicationRefDetectionData} The parsed reference data.
+ * @returns {PublicationRefData} The parsed reference data.
  */
 export function buildPublicationRefData(rawReferenceData) {
     const contentDetectionData = detectReferenceDataType(rawReferenceData);
@@ -149,7 +149,7 @@ async function _fetchAndParseAnchorReferenceOrThrow($anchor) {
     }
 
     const parsed = parseAnchorRefDataOrThrow(json);
-    log.debug(`Parsed anchor reference data for [${$anchor.text()}] and anchor reference [${anchorRefExtractionData.href}]: ${JSON.stringify(parsed)}`);
+    log.debug(`Parsed anchor reference data for [${$anchor.text()}] and anchor reference [${$anchor.text()}]: ${JSON.stringify(parsed)}`);
     return parsed;
 }
 

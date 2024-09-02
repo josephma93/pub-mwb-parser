@@ -1,14 +1,21 @@
 const CONSTANTS = Object.freeze(Object.seal({
     BASE_URL: 'https://wol.jw.org',
+
     ARTICLE_CSS_SELECTOR: '#article',
-    TEN_MIN_TALK_DIV_ID: 'tt8',
+    INTRODUCTION_CSS_SELECTOR: '#p3',
+    TEN_MIN_TALK_CSS_SELECTOR: '#tt8',
+
+    MIDDLE_SONG_CSS_SELECTOR: '.bodyTxt > .dc-icon--music:not(:first-child)',
+    FINAL_SONG_CSS_SELECTOR: '.bodyTxt > h3:last-child',
+
     PUB_CODE_WATCHTOWER: 'pub-w',
     PUB_CODE_BIBLE: 'pub-nwtsty',
+
     UNABLE_TO_FIND: 'UNABLE_TO_FIND',
-    GOD_TREASURES_HEADLINE_CLASS: 'dc-icon--gem',
-    FIELD_MINISTRY_HEADLINE_CLASS: 'dc-icon--wheat',
-    MIDWAY_SONG_HEADLINE_CLASS: 'dc-icon--music',
-    CHRISTIAN_LIVING_HEADLINE_CLASS: 'dc-icon--sheep',
+
+    FIELD_MINISTRY_HEADLINE_CSS_SELECTOR: '.dc-icon--wheat',
+    MIDWAY_SONG_HEADLINE_CSS_SELECTOR: '.dc-icon--music',
+    CHRISTIAN_LIVING_HEADLINE_CSS_SELECTOR: '.dc-icon--sheep',
 }));
 
 export default CONSTANTS;
