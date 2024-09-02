@@ -12,6 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/cheerio": "^0.22.35",
     "cheerio": "^1.0.0",
     "pino": "^9.3.2"
   }

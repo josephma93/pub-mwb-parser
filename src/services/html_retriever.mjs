@@ -1,74 +1,10 @@
 import {withErrorHandling} from "../core/util.mjs";
-import {Constants} from '../core/constants.mjs';
+import CONSTANTS from '../core/constants.mjs';
 import * as cheerio from 'cheerio';
 import logger from "../core/logger.mjs";
+import {getHtmlContent} from "../core/retrievers.mjs";
 
 const log = logger.child(logger.bindings());
-
-/**
- * Fetches HTML content from the specified URL.
- * @param {string} url - The URL from which to fetch HTML content.
- * @returns {Promise<string | Error>} A promise that resolves to the HTML content as a string,
- *     or an Error object if the request fails or an error occurs during processing.
- */
-async function _getHtmlContent(url) {
-    const startTime = performance.now();
-
-    const headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:126.0) Gecko/20100101 Firefox/126.0',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'es-ES,es;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': Constants.BASE_URL,
-    };
-
-    log.debug(`Sending GET request to [${url}] with headers: [${JSON.stringify(headers)}]`);
-
-    try {
-        const response = await fetch(url, { headers });
-        const elapsedTime = (performance.now() - startTime) / 1000;
-
-        if (!response.ok) {
-            const errorMessage = `Failed to fetch [${url}] with status [${response.status}] (${response.statusText}) after [${elapsedTime.toFixed(4)}] seconds. Response headers: [${JSON.stringify(response.headers.raw())}]`;
-            log.error(errorMessage);
-            return new Error(errorMessage);
-        }
-
-        const html = await response.text();
-        log.info(`Received HTML content from [${url}] with status code 200 in [${elapsedTime.toFixed(4)}] seconds. HTML length: [${html.length}]`);
-        if (elapsedTime > 10) {
-            log.warn(`Operation took [${elapsedTime.toFixed(4)}] seconds`);
-        }
-        return html;
-
-    } catch (error) {
-        const elapsedTime = (performance.now() - startTime) / 1000;
-        let errorMessage = `Request to [${url}] failed after [${elapsedTime.toFixed(4)}] seconds.`;
-
-        if (error.name === 'TypeError') {
-            errorMessage += ` Network or DNS error occurred: [${error.message}]`;
-        } else if (error.code === 'ENOTFOUND') {
-            errorMessage += ` DNS lookup failed: [${error.message}]`;
-        } else if (error.code === 'ETIMEDOUT') {
-            errorMessage += ` Request timed out: [${error.message}]`;
-        } else if (error instanceof SyntaxError) {
-            errorMessage += ` Failed to parse response as HTML: [${error.message}]`;
-        } else {
-            errorMessage += ` Unexpected error occurred: [${error.message}]`;
-        }
-
-        log.error(errorMessage);
-        return new Error(errorMessage);
-    }
-}
-
-/**
- * Fetches HTML content from the specified URL with error handling.
- * @returns {Promise<[Error | null, string | null]>} A promise that resolves to a tuple where the first element is an
- *      Error object (or null if no error occurred) and the second element is html content (or null if an error occurred).
- * @see _getHtmlContent
- */
-export const getHtmlContent = withErrorHandling(_getHtmlContent);
 
 /**
  * Fetches the landing HTML from the WOL website.
@@ -76,7 +12,7 @@ export const getHtmlContent = withErrorHandling(_getHtmlContent);
  *     or the HTML content as a string if successful.
  */
 async function _fetchLandingHtml() {
-    const baseUrl = Constants.BASE_URL;
+    const baseUrl = CONSTANTS.BASE_URL;
 
     log.info(`Fetching landing HTML from [${baseUrl}]`);
     let [err, strOrNull] = await getHtmlContent(baseUrl);
@@ -147,7 +83,7 @@ async function _fetchThisWeekMeetingHtml(baseHtml) {
         return new Error("No href found, website structure may have changed");
     }
 
-    const todayHtmlUrl = Constants.BASE_URL + todayNav;
+    const todayHtmlUrl = CONSTANTS.BASE_URL + todayNav;
     log.info(`Fetching today's HTML content from [${todayHtmlUrl}]`);
     let [err, strOrNull] = await getHtmlContent(todayHtmlUrl);
     if (err) {
@@ -194,7 +130,7 @@ async function _extractWatchtowerArticleUrl(thisWeekMeetingProgram) {
         return new Error("No href found, website structure may have changed");
     }
 
-    return `${Constants.BASE_URL}${pubWItem}`;
+    return `${CONSTANTS.BASE_URL}${pubWItem}`;
 }
 
 /**

@@ -1,5 +1,6 @@
 import logger from "./core/logger.mjs";
-import {fetchThisWeekMeetingHtml, fetchThisWeekWatchtowerArticleHtml} from "./services/html_retriever.mjs";
+import {fetchThisWeekMeetingHtml} from "./services/html_retriever.mjs";
+import {extractFullWeekProgram} from "./services/pub_mwb_scraper.mjs";
 
 logger.info("Starting app");
 
@@ -8,12 +9,11 @@ if (err) {
     logger.error(`Failed to fetch this week's meeting HTML: ${err.message}`);
 } else {
     logger.info(`Successfully fetched this week's meeting HTML: ${html.length} characters`);
-}
-
-[err, html] = await fetchThisWeekWatchtowerArticleHtml(html);
-if (err) {
-    logger.error(`Failed to fetch this week's watchtower article HTML: ${err.message}`);
-} else {
-    logger.info(`Successfully fetched and extracted this week's watchtower article HTML: ${html.length} characters`);
+    const [err, program] = await extractFullWeekProgram(html);
+    if (err) {
+        logger.error(`Failed to extract this week's program: ${err.message}`);
+    } else {
+        console.log(`This week's program: [${JSON.stringify(program)}]`);
+    }
 }
 
