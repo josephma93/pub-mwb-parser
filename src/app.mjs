@@ -1,8 +1,8 @@
 import logger from "./core/logger.mjs";
 import {fetchThisWeekMeetingHtml} from "./services/html_retriever.mjs";
 import {
+    extractWeeklyBibleRead,
     extractBibleRead,
-    extractBibleReading,
     extractBibleStudy,
     extractChristianLiving,
     extractFieldMinistry,
@@ -23,7 +23,7 @@ if (err) {
     let span = extractWeekDateSpan({html});
     console.log(`span: [${span}]`);
 
-    let result = await extractBibleRead({html});
+    let result = await extractWeeklyBibleRead({html});
     console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 
 
@@ -35,7 +35,7 @@ if (err) {
     console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 
 
-    result = await extractBibleReading({html});
+    result = await extractBibleRead({html});
     console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 
 

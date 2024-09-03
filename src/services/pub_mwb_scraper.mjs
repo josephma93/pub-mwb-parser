@@ -70,7 +70,7 @@ export function extractWeekDateSpan(input) {
 }
 
 /**
- * @typedef {Object} WeeklyBibleReadAssignment
+ * @typedef {Object} WeeklyBibleReadData
  * @property {string} bookName - The name of the book.
  * @property {number} bookNumber - The number assigned to the book.
  * @property {number} firstChapter - The first chapter assigned to be read.
@@ -81,10 +81,10 @@ export function extractWeekDateSpan(input) {
 /**
  * Extracts the bible read data from the given input.
  * @param {ExtractionInput} input The input object necessary values for correct extraction.
- * @returns {Promise<TreasuresTalkData>} The extracted data.
+ * @returns {Promise<WeeklyBibleReadData>} The extracted data.
  * @throws {Error} If the extraction fails.
  */
-export async function extractBibleRead(input) {
+export async function extractWeeklyBibleRead(input) {
     function extractBookNameFromTooltipCaption(caption) {
         const pattern = /^(.*?)(?=\d+:)/;
         const match = caption.match(pattern);
@@ -302,7 +302,7 @@ export async function extractTreasuresTalk(input) {
 /**
  * Extracts the spiritual gems data from the given input.
  * @param {ExtractionInput} input The input object necessary values for correct extraction.
- * @returns {Promise<TreasuresTalkData>} The extracted data.
+ * @returns {Promise<SpiritualGemsData>} The extracted data.
  * @throws {Error} If the extraction fails.
  */
 export async function extractSpiritualGems(input) {
@@ -313,8 +313,6 @@ export async function extractSpiritualGems(input) {
     const $content = $spiritualGemsSelection.eq(1);
 
     const printedQuestionData = {
-        sectionNumber: getSectionNumberFromElement($spiritualGemsSelection.eq(0)),
-        timeBox: getTimeBoxFromElement($content),
         scriptureMnemonic: '',
         scriptureContents: '',
         question: '',
@@ -362,6 +360,8 @@ export async function extractSpiritualGems(input) {
     }
 
     const result = {
+        sectionNumber: getSectionNumberFromElement($spiritualGemsSelection.eq(0)),
+        timeBox: getTimeBoxFromElement($content),
         printedQuestionData,
         openEndedQuestion: cleanText($content.find(`li.du-margin-top--8 p`).text()),
     };
@@ -391,7 +391,7 @@ export async function extractSpiritualGems(input) {
  * @returns {Promise<BibleReadData>} The extracted data.
  * @throws {Error} If the extraction fails.
  */
-export async function extractBibleReading(input) {
+export async function extractBibleRead(input) {
     log.info("Extracting Bible reading data");
 
     input.selectionBuilder = ($) => buildGodsTreasuresSelections($).bibleRead;
@@ -459,12 +459,6 @@ function buildHeadlineToContentGroups(fieldMinistry, $) {
  * @property {string} headline - The headline for the ministry task.
  * @property {string} contents - The content of the assignment task.
  * @property {StudyPoint | null} studyPoint - The study point associated with this task or null if none which means isStudentTask is false.
- */
-
-/**
- * @param {Cheerio} fieldMinistry
- * @param {cheerio.Root} $
- * @returns {FieldMinistryAssignmentData[]}
  */
 
 /**
@@ -541,7 +535,7 @@ export async function extractFieldMinistry(input) {
 /**
  * Extracts the Christian Living section data from the given input.
  * @param {ExtractionInput} input The input object necessary values for correct extraction.
- * @returns {Promise<ChristianLivingSectionData[]>} The extracted data.
+ * @returns {ChristianLivingSectionData[]} The extracted data.
  * @throws {Error} If the extraction fails.
  */
 export function extractChristianLiving(input) {
@@ -610,14 +604,14 @@ export function extractBibleStudy(input) {
 
 /**
  * @typedef {Object} FullWeekProgramData
- * @property {ReturnType<extractWeekDateSpan>} weekDateSpan - The date span of the week.
- * @property {ReturnType<extractBibleStudy>} bibleRead - The bible read data.
- * @property {ReturnType<extractTreasuresTalk>} treasuresTalk - The treasures talk data.
- * @property {ReturnType<extractSpiritualGems>} spiritualGems - The spiritual gems' data.
- * @property {ReturnType<extractBibleReading>} bibleReading - The bible reading data.
- * @property {ReturnType<extractFieldMinistry>} fieldMinistry - The field ministry data.
- * @property {ReturnType<extractChristianLiving>} christianLiving - The christian living data.
- * @property {ReturnType<extractBibleStudy>} bibleStudy - The congregation bible study data.
+ * @property {string} weekDateSpan - The date span of the week.
+ * @property {WeeklyBibleReadData} weeklyBibleReadData - The bible read data.
+ * @property {TreasuresTalkData} treasuresTalk - The treasures talk data.
+ * @property {SpiritualGemsData} spiritualGems - The spiritual gems' data.
+ * @property {BibleReadData} bibleRead - The bible reading data.
+ * @property {FieldMinistryAssignmentData[]} fieldMinistry - The field ministry data.
+ * @property {ChristianLivingSectionData[]} christianLiving - The christian living data.
+ * @property {CongregationBibleStudyData} bibleStudy - The congregation bible study data.
  */
 
 /**
@@ -631,35 +625,32 @@ export async function extractFullWeekProgram(input) {
     log.info("Starting full week program extraction");
     const inputObj = processExtractionInput(input);
     const {$} = inputObj;
-    const weekDateSpan = extractWeekDateSpan(inputObj);
     const programGroups = buildRelevantProgramGroupSelections($);
 
+    const weekDateSpan = extractWeekDateSpan(inputObj);
+    const christianLiving = extractChristianLiving({$, selection: programGroups.christianLiving});
+    const bibleStudy = extractBibleStudy({$, selection: programGroups.bibleStudy});
+
     const [
-        bibleRead,
+        weeklyBibleReadData,
         treasuresTalk,
-        spiritualGemsData,
-        bibleReading,
+        spiritualGems,
+        bibleRead,
         fieldMinistry,
-        christianLiving,
-        bibleStudy,
     ] = await Promise.all([
-        extractBibleRead({$, selection: programGroups.bibleRead}),
+        extractWeeklyBibleRead({$, selection: programGroups.bibleRead}),
         extractTreasuresTalk({$, selection: programGroups.treasuresTalk}),
         extractSpiritualGems({$, selection: programGroups.spiritualGems}),
-        extractBibleReading({$, selection: programGroups.bibleRead}),
+        extractBibleRead({$, selection: programGroups.bibleRead}),
         extractFieldMinistry({$, selection: programGroups.fieldMinistry}),
-        extractChristianLiving({$, selection: programGroups.christianLiving}),
-        extractBibleStudy({$, selection: programGroups.bibleStudy}),
-    ]).catch(err => {
-        throw err;
-    });
+    ]);
 
     const result = {
         weekDateSpan,
-        bibleRead,
+        weeklyBibleReadData,
         treasuresTalk,
-        spiritualGemsData,
-        bibleReading,
+        spiritualGems,
+        bibleRead,
         fieldMinistry,
         christianLiving,
         bibleStudy,
