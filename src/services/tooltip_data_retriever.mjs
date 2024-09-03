@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio';
 import logger from "../core/logger.mjs";
 import CONSTANTS from "../core/constants.mjs";
 import {withErrorHandling} from "../core/util.mjs";
@@ -42,9 +41,46 @@ async function _fetchAnchorReferenceData(anchorRefExtractionData) {
 }
 
 /**
+ * @typedef {Object} BasePublicationItem
+ * @property {string} title - The title of the publication or passage.
+ * @property {string} url - The URL to the publication or passage.
+ * @property {string} caption - The caption associated with the item (can be empty).
+ * @property {string} content - The HTML content of the item.
+ * @property {string} articleClasses - CSS classes applied to the article.
+ * @property {string} reference - Reference text, if any.
+ * @property {string[]} categories - Categories associated with the item, e.g., ["it"] for Insight or ["w"] for Watchtower.
+ * @property {string} pubType - The publication type (can be empty).
+ * @property {string} publicationTitle - The title of the publication.
+ */
+
+/**
+ * @typedef {BasePublicationItem} BiblicalPassageItem
+ * @property {number} book - The book number.
+ * @property {number} first_chapter - The first chapter number.
+ * @property {number} first_verse - The first verse number.
+ * @property {number} last_chapter - The last chapter number.
+ * @property {number} last_verse - The last verse number.
+ */
+
+/**
+ * @typedef {Object} BasePublicationResponse
+ * @property {string} title - The title of the response section.
+ */
+
+/**
+ * @typedef {BasePublicationResponse} BiblicalPassageResponse
+ * @property {BiblicalPassageItem[]} items - An array of items containing details about the Biblical passage.
+ */
+
+/**
+ * @typedef {BasePublicationResponse} DefaultResponse
+ * @property {BasePublicationItem[]} items - An array of items containing details about a WOL publication.
+ */
+
+/**
  * Fetches the JSON content from the WOL website given the anchor reference extraction data.
  * @param {AnchorRefExtractionData} anchorRefExtractionData - An object containing the source href and the URL to fetch the referenced data.
- * @returns {Promise<ErrorTuple | SuccessTuple<Object>>} A promise that resolves to a tuple where the first element is an
+ * @returns {Promise<ErrorTuple | SuccessTuple<DefaultResponse | BiblicalPassageResponse>>} A promise that resolves to a tuple where the first element is an
  *      Error object (or null if no error occurred) and the second element is the JSON content (or null if an error occurred).
  */
 export const fetchAnchorReferenceData = withErrorHandling(_fetchAnchorReferenceData);
