@@ -267,6 +267,56 @@ async function extractSpiritualGems(spiritualGems) {
     };
 }
 
+/**
+ * @typedef {Object} BibleReadData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {string} scriptureMnemonic - A mnemonic or reference for the scripture passage.
+ * @property {string} scriptureContents - The full text of the scripture passage.
+ * @property {string} studyPointMnemonic - A mnemonic or reference for the study point.
+ * @property {string} studyPointContents - The contents of the study point associated with the study lesson.
+ */
+
+/**
+ * @param {Cheerio} bibleRead
+ * @returns {BibleReadData}
+ */
+async function extractBibleReading(bibleRead) {
+    const $content = bibleRead.eq(1);
+    const result = {
+        sectionNumber: 3,
+        timeBox: getTimeBoxFromElement($content),
+        scriptureMnemonic: '',
+        scriptureContents: '',
+        studyPointMnemonic: '',
+        studyPointContents: '',
+    };
+
+    const $anchorSelection = $content.find(`a`);
+    if ($anchorSelection.length !== 2) {
+        const msg = `Unexpected number of elements for bible reading anchor.`;
+        log.error(msg);
+        throw new Error(msg);
+    }
+
+    const $scriptureAnchor = $anchorSelection.eq(0);
+    const $studyPointAnchor = $anchorSelection.eq(1);
+    let [err, json] = await fetchAndParseAnchorReferenceOrThrow($scriptureAnchor);
+    if (err) {
+        throw err;
+    }
+    result.scriptureMnemonic = cleanText($scriptureAnchor.text());
+    result.scriptureContents = json.parsedContent;
+    result.studyPointMnemonic = cleanText($studyPointAnchor.text());
+    [err, json] = await fetchAndParseAnchorReferenceOrThrow($studyPointAnchor);
+    if (err) {
+        throw err;
+    }
+    result.studyPointContents = json.parsedContent;
+
+    return result;
+}
+
 async function _extractFullWeekProgram(html) {
     function buildRelevantProgramGroupSelections(cheerioParsed) {
         let msg = '';
@@ -328,10 +378,12 @@ async function _extractFullWeekProgram(html) {
         bibleRead,
         treasuresTalk,
         spiritualGemsData,
+        bibleReading,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
         extractTenMinTalk(programGroups.treasuresTalk),
         extractSpiritualGems(programGroups.spiritualGems),
+        extractBibleReading(programGroups.bibleRead),
     ]).catch(err => {
         throw err;
     });
@@ -341,6 +393,7 @@ async function _extractFullWeekProgram(html) {
         bibleRead,
         treasuresTalk,
         spiritualGemsData,
+        bibleReading,
     }
 }
 

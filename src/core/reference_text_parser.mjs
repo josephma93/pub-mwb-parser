@@ -24,7 +24,8 @@ export function parsePubNwtsty(content) {
     $('.sl, .sz').each((i, el) => {
         $(el).append(`<span> </span>`);
     })
-    return cleanText($.text());
+    return cleanText($.text())
+        .replaceAll(/(\s\n|\n\s)/g, '\n');
 }
 
 /**
