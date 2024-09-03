@@ -24,9 +24,12 @@ const log = logger.child(logger.bindings());
  * @throws {Error} If no element is found for the given selector.
  */
 export function extractWeekDateSpan(cheerioOrHtml) {
+    log.info("Starting to extract week date span");
     let $ = typeof cheerioOrHtml === 'string' ? cheerio.load(cheerioOrHtml) : cheerioOrHtml;
     const $el = getCheerioSelectionOrThrow($, '#p1');
-    return $el.text().toLowerCase();
+    const result = $el.text().toLowerCase();
+    log.info(`Extracted week date span: [${result}]`);
+    return result;
 }
 
 /**
@@ -44,6 +47,8 @@ export function extractWeekDateSpan(cheerioOrHtml) {
  * @returns {Promise<Error | WeeklyBibleReadAssignment>} A promise that resolves to the extracted bible read data.
  */
 export async function extractBibleRead(cheerioOrHtml) {
+    log.info("Starting to extract Bible read data");
+
     function extractBookNameFromTooltipCaption(caption) {
         const pattern = /^(.*?)(?=\d+:)/;
         const match = caption.match(pattern);
@@ -70,6 +75,7 @@ export async function extractBibleRead(cheerioOrHtml) {
     for (let i = 0; i < $selection.length; i++) {
         const $anchor = $selection.eq(i);
         const anchorRefExtractionData = buildAnchorRefExtractionData($anchor);
+        log.debug(`Processing anchor at index [${i}], anchorRefExtractionData: [${JSON.stringify(anchorRefExtractionData)}]`);
 
         const [err, json] = await fetchAnchorReferenceData(anchorRefExtractionData);
         if (err) {
@@ -77,13 +83,18 @@ export async function extractBibleRead(cheerioOrHtml) {
         }
 
         if (!isJsonContentAcceptableForReferenceExtraction(json)) {
-            throw new Error(`JSON content for reference doesn't match the expected format.`);
+            const msg = `JSON content for reference doesn't match the expected format.`;
+            log.error(msg);
+            throw new Error(msg);
         }
         const [rawFetchedData] = json.items;
         const detectedReferenceDataTypes = detectReferenceDataType(rawFetchedData);
+        log.debug(`Detected reference data types: [${JSON.stringify(detectedReferenceDataTypes)}]`);
 
         if (!detectedReferenceDataTypes.isPubNwtsty) {
-            throw new Error(`Unexpected anchor reference data extracted from anchor element`);
+            const msg = `Unexpected anchor reference data extracted from anchor element`;
+            log.error(msg);
+            throw new Error(msg);
         }
 
         if (urlPathForLinks === '') {
@@ -92,10 +103,12 @@ export async function extractBibleRead(cheerioOrHtml) {
             result.bookName = extractBookNameFromTooltipCaption(rawFetchedData.caption);
             result.firstChapter = rawFetchedData.first_chapter;
             result.lastChapter = rawFetchedData.last_chapter;
+            log.info(`Initialized result with first data: [${JSON.stringify(result)}]`);
         }
 
         result.firstChapter = Math.min(result.firstChapter, rawFetchedData.first_chapter);
         result.lastChapter = Math.max(result.lastChapter, rawFetchedData.last_chapter);
+        log.debug(`Updated chapters: firstChapter=[${result.firstChapter}], lastChapter=[${result.lastChapter}]`);
     }
 
     const languageCode = buildAnchorRefExtractionData($selection.eq(0)).sourceHref.slice(0, 3);
@@ -106,6 +119,7 @@ export async function extractBibleRead(cheerioOrHtml) {
         result.links.push(`${CONSTANTS.BASE_URL}${languageCode}${joinedUrlPath}`);
     }
 
+    log.info(`Extracted Bible read data: [${JSON.stringify(result)}]`);
     return result;
 }
 
@@ -116,6 +130,7 @@ export async function extractBibleRead(cheerioOrHtml) {
  * @throws {Error} If time box is not found.
  */
 function getTimeBoxFromElement($selection) {
+    log.info("Extracting time box from element");
     const msg = `No selection found for selector [${CONSTANTS.LINE_WITH_TIME_BOX_CSS_SELECTOR}]`;
     let $lineWithTimeBox = $selection.find(CONSTANTS.LINE_WITH_TIME_BOX_CSS_SELECTOR);
     if (!$lineWithTimeBox.length) {
@@ -125,7 +140,9 @@ function getTimeBoxFromElement($selection) {
 
     const timeMatch = cleanText($lineWithTimeBox.text()).match(/\((\d+)\s*mins?\.\)/);
     if (timeMatch) {
-        return parseInt(timeMatch[1], 10);
+        const timeBox = parseInt(timeMatch[1], 10);
+        log.info(`Extracted time box: [${timeBox}] minutes`);
+        return timeBox;
     }
 
     log.error(msg);
@@ -152,6 +169,7 @@ function getTimeBoxFromElement($selection) {
  * @returns {TenMinTalkData}
  */
 async function extractTenMinTalk(tenMinTalkElement) {
+    log.info("Extracting ten-minute talk data");
     const result = {
         sectionNumber: 1,
         timeBox: getTimeBoxFromElement(tenMinTalkElement),
@@ -161,6 +179,7 @@ async function extractTenMinTalk(tenMinTalkElement) {
     };
 
     const $points = tenMinTalkElement.find(`> div > p`);
+    log.debug(`Found [${$points.length}] points in the talk`);
 
     let footnoteKey = 0;
     for (let i = 0; i < $points.length; i++) {
@@ -172,6 +191,8 @@ async function extractTenMinTalk(tenMinTalkElement) {
         let pointText = cleanText($point.text());
         const $references = $point.find(`a`);
 
+        log.debug(`Processing point [${i + 1}] with [${$references.length}] references`);
+
         for (let j = 0; j < $references.length; j++) {
             const $ref = $references.eq(j);
             const refText = cleanText($ref.text());
@@ -182,12 +203,15 @@ async function extractTenMinTalk(tenMinTalkElement) {
             }
             result.footnotes[footnoteKey] = refData.parsedContent;
             talkPoint.footnotes.push(footnoteKey);
+            log.debug(`Added footnote [${footnoteKey}] for reference: [${refText}]`);
         }
 
         talkPoint.text = pointText;
         result.points.push(talkPoint);
+        log.debug(`Added talk point [${i + 1}]`);
     }
 
+    log.info(`Extracted ten-minute talk data`);
     return result;
 }
 
@@ -220,6 +244,7 @@ async function extractTenMinTalk(tenMinTalkElement) {
  * @throws {Error}
  */
 async function extractSpiritualGems(spiritualGems) {
+    log.info("Extracting spiritual gems data");
     const $content = spiritualGems.eq(1);
 
     const printedQuestionData = {
@@ -256,6 +281,8 @@ async function extractSpiritualGems(spiritualGems) {
 
     const $answerSelection = $content.find(`a`).slice(1); // Skip the first element, which is the scripture reference.
 
+    log.debug(`Processing [${$answerSelection.length}] answer sources`);
+
     for (let i = 0; i < $answerSelection.length; i++) {
         const $answer = $answerSelection.eq(i);
         [err, json] = await fetchAndParseAnchorReferenceOrThrow($answer);
@@ -266,12 +293,16 @@ async function extractSpiritualGems(spiritualGems) {
             contents: json.parsedContent,
             mnemonic: cleanText($answer.text()),
         });
+        log.debug(`Added answer source [${i + 1}] for mnemonic [${printedQuestionData.answerSources[printedQuestionData.answerSources.length - 1].mnemonic}]`);
     }
 
-    return {
+    const result = {
         printedQuestionData,
         openEndedQuestion: cleanText($content.find(`li.du-margin-top--8 p`).text()),
     };
+
+    log.info(`Extracted spiritual gems data`);
+    return result;
 }
 
 /**
@@ -294,6 +325,7 @@ async function extractSpiritualGems(spiritualGems) {
  * @returns {BibleReadData}
  */
 async function extractBibleReading(bibleRead) {
+    log.info("Extracting Bible reading data");
     const $content = bibleRead.eq(1);
     const result = {
         sectionNumber: 3,
@@ -328,6 +360,7 @@ async function extractBibleReading(bibleRead) {
     }
     result.studyPoint.contents = json.parsedContent;
 
+    log.info(`Extracted Bible reading data`);
     return result;
 }
 
@@ -338,13 +371,16 @@ async function extractBibleReading(bibleRead) {
  * @throws {Error} If the element's text doesn't match the expected format.
  */
 function getSectionNumberFromElement($element) {
+    log.info("Extracting section number from element");
     const elementText = cleanText($element.text());
     if (!/^\d\./.test(elementText)) {
         const msg = `Unexpected section number for element [${elementText}].`;
         log.error(msg);
         throw new Error(msg);
     }
-    return parseInt(elementText.split('.')[0], 10);
+    const sectionNumber = parseInt(elementText.split('.')[0], 10);
+    log.info(`Extracted section number: [${sectionNumber}]`);
+    return sectionNumber;
 }
 
 /**
@@ -380,6 +416,7 @@ function buildHeadlineToContentGroups(fieldMinistry, $) {
  * @returns {FieldMinistryAssignmentData[]}
  */
 async function extractFieldMinistry(fieldMinistry, $) {
+    log.info("Extracting field ministry data");
 
     function extractBetweenParentheses(text) {
         const extractRegex = /\)\s*\s*(.*?)\s*(?=\s*\()/;
@@ -404,6 +441,8 @@ async function extractFieldMinistry(fieldMinistry, $) {
             studyPoint: null,
         };
 
+        log.debug(`Processing assignment: [${result.headline}], isStudentTask=[${result.isStudentTask}]`);
+
         if (result.isStudentTask) {
             const $studyPointAnchor = assignmentContents.find(`a`).slice(-1);
             if ($studyPointAnchor.length !== 1) {
@@ -420,8 +459,10 @@ async function extractFieldMinistry(fieldMinistry, $) {
                 contents: json.parsedContent,
             };
             result.contents = extractBetweenParentheses(contentsText);
+            log.debug(`Added study poin`);
         }
 
+        log.info(`Extracted field ministry assignment`);
         return result;
     });
 
@@ -441,6 +482,7 @@ async function extractFieldMinistry(fieldMinistry, $) {
  * @returns {ChristianLivingSectionData[]}
  */
 function extractChristianLiving(christianLiving, $) {
+    log.info("Extracting Christian Living section data");
 
     function polishElementText($el) {
         let result = $el.text();
@@ -457,11 +499,13 @@ function extractChristianLiving(christianLiving, $) {
     const sectionGroups = buildHeadlineToContentGroups(christianLiving, $);
 
     return sectionGroups.map(({heading, contents}) => {
-        return {
+        const result = {
             sectionNumber: getSectionNumberFromElement(heading),
             timeBox: getTimeBoxFromElement(contents[0]),
             contents: takeOutTimeBoxText(contents.map(polishElementText)),
         };
+        log.info(`Extracted Christian Living section`);
+        return result;
     });
 }
 
@@ -479,7 +523,8 @@ function extractChristianLiving(christianLiving, $) {
  * @returns {CongregationBibleStudyData}
  */
 function extractBibleStudy(bibleStudy, $) {
-    return {
+    log.info("Extracting Bible study section data");
+    const result = {
         sectionNumber: getSectionNumberFromElement(bibleStudy.eq(0)),
         timeBox: getTimeBoxFromElement(bibleStudy),
         contents: cleanText(bibleStudy.text()),
@@ -491,9 +536,13 @@ function extractBibleStudy(bibleStudy, $) {
             })
             .get(),
     };
+    log.info(`Extracted Bible study data`);
+    return result;
 }
 
 async function _extractFullWeekProgram(html) {
+    log.info("Starting full week program extraction");
+
     function buildRelevantProgramGroupSelections(cheerioParsed) {
         let msg = '';
         const fieldMinistryHeadline = cheerioParsed(CONSTANTS.FIELD_MINISTRY_HEADLINE_CSS_SELECTOR);
@@ -570,7 +619,7 @@ async function _extractFullWeekProgram(html) {
         throw err;
     });
 
-    return {
+    const result = {
         weekDateSpan,
         bibleRead,
         treasuresTalk,
@@ -579,7 +628,10 @@ async function _extractFullWeekProgram(html) {
         fieldMinistry,
         christianLiving,
         bibleStudy,
-    }
+    };
+
+    log.info("Successfully extracted full week program");
+    return result;
 }
 
 /**
