@@ -1,6 +1,11 @@
 import * as cheerio from 'cheerio';
 import logger from "../core/logger.mjs";
-import {cleanText, getCheerioSelectionOrThrow, withErrorHandling} from "../core/util.mjs";
+import {
+    cleanText,
+    collapseConsecutiveLineBreaks,
+    getCheerioSelectionOrThrow,
+    withErrorHandling
+} from "../core/util.mjs";
 import {
     buildAnchorRefExtractionData,
     detectReferenceDataType,
@@ -348,9 +353,26 @@ function getSectionNumberFromElement($element) {
  * @property {number} timeBox - The time box for the section.
  * @property {boolean} isStudentTask - Indicates whether this is a student task.
  * @property {string} headline - The headline for the ministry task.
- * @property {string} contents - The content of the ministry task.
+ * @property {string} contents - The content of the assignment task.
  * @property {StudyPoint | null} studyPoint - The study point associated with this task or null if none which means isStudentTask is false.
  */
+
+function buildHeadlineToContentGroups(fieldMinistry, $) {
+    return fieldMinistry.toArray().reduce((acc, el) => {
+        const $el = $(el);
+
+        if ($el.is('h3')) {
+            acc.push({
+                heading: $el,
+                contents: [],
+            });
+        } else {
+            acc.at(-1)?.contents.push($el);
+        }
+
+        return acc;
+    }, []);
+}
 
 /**
  * @param {Cheerio} fieldMinistry
@@ -368,33 +390,13 @@ async function extractFieldMinistry(fieldMinistry, $) {
         return text;
     }
 
-    const assignmentGroups = fieldMinistry.toArray().reduce((acc, el) => {
-        const $el = $(el);
+    const assignmentGroups = buildHeadlineToContentGroups(fieldMinistry, $);
 
-        if ($el.is('h3')) {
-            acc.push({
-                heading: $el,
-                contents: null,
-            });
-            return acc;
-        }
-        const currentGroup = acc.at(-1);
-        if (!currentGroup || currentGroup.contents !== null) {
-            const msg = `Unexpected element detected. Expected h3 or null, got ${$el[0].tagname}`;
-            log.error(msg);
-            throw new Error(msg);
-        }
-
-        currentGroup.contents = $el;
-
-        return acc;
-    }, []);
-
-    const promises = assignmentGroups.map(async ({heading, contents}) => {
-        const contentsText = cleanText(contents.text());
+    const promises = assignmentGroups.map(async ({heading, contents: [assignmentContents]}) => {
+        const contentsText = cleanText(assignmentContents.text());
         const result = {
             sectionNumber: getSectionNumberFromElement(heading),
-            timeBox: getTimeBoxFromElement(contents),
+            timeBox: getTimeBoxFromElement(assignmentContents),
             // Student tasks have a time inside parentheses and a study point inside parentheses.
             isStudentTask: /\(.*?\).*?\(.*?\)/.test(contentsText),
             headline: cleanText(heading.text()).slice(3),
@@ -403,7 +405,7 @@ async function extractFieldMinistry(fieldMinistry, $) {
         };
 
         if (result.isStudentTask) {
-            const $studyPointAnchor = contents.find(`a`).slice(-1);
+            const $studyPointAnchor = assignmentContents.find(`a`).slice(-1);
             if ($studyPointAnchor.length !== 1) {
                 const msg = `Unable to find study point anchor.`;
                 log.error(msg);
@@ -424,6 +426,43 @@ async function extractFieldMinistry(fieldMinistry, $) {
     });
 
     return await Promise.all(promises);
+}
+
+/**
+ * @typedef {Object} ChristianLivingSectionData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {string} contents - The content of the ministry task.
+ */
+
+/**
+ * @param {Cheerio} christianLiving
+ * @param {cheerio.Root} $
+ * @returns {ChristianLivingSectionData[]}
+ */
+function extractChristianLiving(christianLiving, $) {
+
+    function polishElementText($el) {
+        let result = $el.text();
+        result = cleanText(result);
+        result = collapseConsecutiveLineBreaks(result);
+        return result;
+    }
+
+    function takeOutTimeBoxText(text) {
+        text = text.join('\n');
+        return text.split(')').slice(1).join(')').trim();
+    }
+
+    const sectionGroups = buildHeadlineToContentGroups(christianLiving, $);
+
+    return sectionGroups.map(({heading, contents}) => {
+        return {
+            sectionNumber: getSectionNumberFromElement(heading),
+            timeBox: getTimeBoxFromElement(contents[0]),
+            contents: takeOutTimeBoxText(contents.map(polishElementText)),
+        };
+    });
 }
 
 async function _extractFullWeekProgram(html) {
@@ -489,12 +528,14 @@ async function _extractFullWeekProgram(html) {
         spiritualGemsData,
         bibleReading,
         fieldMinistry,
+        christianLiving,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
         extractTenMinTalk(programGroups.treasuresTalk),
         extractSpiritualGems(programGroups.spiritualGems),
         extractBibleReading(programGroups.bibleRead),
         extractFieldMinistry(programGroups.fieldMinistry, cheerioParsed),
+        extractChristianLiving(programGroups.christianLiving, cheerioParsed),
     ]).catch(err => {
         throw err;
     });
@@ -506,6 +547,7 @@ async function _extractFullWeekProgram(html) {
         spiritualGemsData,
         bibleReading,
         fieldMinistry,
+        christianLiving,
     }
 }
 
