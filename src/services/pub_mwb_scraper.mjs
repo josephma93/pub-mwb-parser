@@ -30,7 +30,7 @@ export function extractWeekDateSpan(cheerioOrHtml) {
 }
 
 /**
- * @typedef {Object} WeeklyBibleyStudyAssignement
+ * @typedef {Object} WeeklyBibleReadAssignment
  * @property {string} bookName - The name of the book.
  * @property {number} bookNumber - The number assigned to the book.
  * @property {number} firstChapter - The first chapter assigned to be read.
@@ -41,7 +41,7 @@ export function extractWeekDateSpan(cheerioOrHtml) {
 /**
  * Extracts the bible read data from the given HTML content.
  * @param {string | ReturnType<cheerio.CheerioAPI.load>} cheerioOrHtml - The HTML content to parse, or a Cheerio object.
- * @returns {Promise<Error | WeeklyBibleyStudyAssignement>} A promise that resolves to the extracted bible read data.
+ * @returns {Promise<Error | WeeklyBibleReadAssignment>} A promise that resolves to the extracted bible read data.
  */
 export async function extractBibleRead(cheerioOrHtml) {
     function extractBookNameFromTooltipCaption(caption) {
@@ -465,6 +465,34 @@ function extractChristianLiving(christianLiving, $) {
     });
 }
 
+/**
+ * @typedef {Object} CongregationBibleStudyData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {string} contents - The content of the ministry task.
+ * @property {string[]} references - The references to be covered during the study.
+ */
+
+/**
+ * @param {Cheerio} bibleStudy
+ * @param {cheerio.Root} $
+ * @returns {CongregationBibleStudyData}
+ */
+function extractBibleStudy(bibleStudy, $) {
+    return {
+        sectionNumber: getSectionNumberFromElement(bibleStudy.eq(0)),
+        timeBox: getTimeBoxFromElement(bibleStudy),
+        contents: cleanText(bibleStudy.text()),
+        references: bibleStudy.eq(1)
+            .find('a')
+            .map((i, el) => {
+                const $el = $(el);
+                return `${CONSTANTS.BASE_URL}${$el.attr('href')}`;
+            })
+            .get(),
+    };
+}
+
 async function _extractFullWeekProgram(html) {
     function buildRelevantProgramGroupSelections(cheerioParsed) {
         let msg = '';
@@ -529,6 +557,7 @@ async function _extractFullWeekProgram(html) {
         bibleReading,
         fieldMinistry,
         christianLiving,
+        bibleStudy,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
         extractTenMinTalk(programGroups.treasuresTalk),
@@ -536,6 +565,7 @@ async function _extractFullWeekProgram(html) {
         extractBibleReading(programGroups.bibleRead),
         extractFieldMinistry(programGroups.fieldMinistry, cheerioParsed),
         extractChristianLiving(programGroups.christianLiving, cheerioParsed),
+        extractBibleStudy(programGroups.bibleStudy, cheerioParsed),
     ]).catch(err => {
         throw err;
     });
@@ -548,6 +578,7 @@ async function _extractFullWeekProgram(html) {
         bibleReading,
         fieldMinistry,
         christianLiving,
+        bibleStudy,
     }
 }
 
