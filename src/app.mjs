@@ -1,6 +1,16 @@
 import logger from "./core/logger.mjs";
 import {fetchThisWeekMeetingHtml} from "./services/html_retriever.mjs";
-import {extractFullWeekProgram} from "./services/pub_mwb_scraper.mjs";
+import {
+    extractBibleRead,
+    extractBibleReading,
+    extractBibleStudy,
+    extractChristianLiving,
+    extractFieldMinistry,
+    extractFullWeekProgram,
+    extractSpiritualGems,
+    extractTreasuresTalk,
+    extractWeekDateSpan
+} from "./services/pub_mwb_scraper.mjs";
 
 logger.info("Starting app");
 
@@ -9,11 +19,39 @@ if (err) {
     logger.error(`Failed to fetch this week's meeting HTML: ${err.message}`);
 } else {
     logger.info(`Successfully fetched this week's meeting HTML: ${html.length} characters`);
-    const [err, program] = await extractFullWeekProgram(html);
-    if (err) {
-        logger.error(`Failed to extract this week's program: ${err.message}`);
-    } else {
-        console.log(`This week's program: [${JSON.stringify(program, null, 2)}]`);
-    }
+
+    let span = extractWeekDateSpan({html});
+    console.log(`span: [${span}]`);
+
+    let result = await extractBibleRead({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = await extractTreasuresTalk({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = await extractSpiritualGems({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = await extractBibleReading({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = await extractFieldMinistry({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = extractChristianLiving({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = extractBibleStudy({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
+
+
+    result = await extractFullWeekProgram({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 }
 

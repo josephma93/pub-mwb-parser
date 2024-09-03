@@ -40,13 +40,13 @@ export function withErrorHandling(asyncFunc) {
  * Finds a cheerio element based on the given selector, or throws an error
  * if no element is found.
  *
- * @param {ReturnType<cheerio.CheerioAPI.load>} cheerioParsed - The cheerio object to search for the element.
+ * @param {ReturnType<cheerio.CheerioAPI.load>} $ - The cheerio object to search for the element.
  * @param {string} selector - The CSS selector to search for.
  * @throws {Error} If no element is found for the given selector.
  * @returns {ReturnType<CheerioAPI>} The cheerio element that was found.
  */
-export function getCheerioSelectionOrThrow(cheerioParsed, selector) {
-    const $selection = cheerioParsed(selector);
+export function getCheerioSelectionOrThrow($, selector) {
+    const $selection = $(selector);
     if (!$selection.length) {
         log.error(`No selection found for selector [${selector}]`);
         throw new Error(`No selection found for selector [${selector}]`);

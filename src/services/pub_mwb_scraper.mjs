@@ -4,7 +4,6 @@ import {
     cleanText,
     collapseConsecutiveLineBreaks,
     getCheerioSelectionOrThrow,
-    withErrorHandling
 } from "../core/util.mjs";
 import {
     buildAnchorRefExtractionData,
@@ -14,18 +13,56 @@ import {
     isJsonContentAcceptableForReferenceExtraction
 } from "./tooltip_data_retriever.mjs";
 import CONSTANTS from "../core/constants.mjs";
+import {
+    buildRelevantProgramGroupSelections,
+    buildGodsTreasuresSelections,
+    buildFieldMinistrySelections, buildChristianLivingSelections
+} from "./pub_mwb_program_selection_groups.mjs";
 
 const log = logger.child(logger.bindings());
 
 /**
- * Extracts the week date span text from the given HTML content.
- * @param {string | ReturnType<cheerio.CheerioAPI.load>} cheerioOrHtml - The HTML content to parse, or a Cheerio object.
- * @returns {string} The extracted week date span text in lower case.
- * @throws {Error} If no element is found for the given selector.
+ * @typedef {Object} ExtractionInput
+ * @property {ReturnType<cheerio.load>} [$] - A pre-parsed Cheerio object. If provided, it will be used directly for section extraction.
+ * @property {string} [html] - The raw HTML string to be parsed. If provided, it will be used to create a Cheerio object.
+ * @property {Cheerio} [selection] - A specific Cheerio selection (a subset of the DOM) to be used directly for extraction.
+ *                                           If provided, this takes precedence over `html` and `cheerioObj`.
+ * @property {function(ReturnType<cheerio.load>): Cheerio} [selectionBuilder] - A function that takes a Cheerio object and builds the expected selection.
  */
-export function extractWeekDateSpan(cheerioOrHtml) {
+
+/**
+ * Processes the extraction input and deals with defaults.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {ExtractionInput} The input object with the default values filled in.
+ * @throws {Error} If something is wrong with the input.
+ */
+export function processExtractionInput({$, html, selection, selectionBuilder}) {
+    if (!$ && !html) {
+        const msg = 'No HTML or Cheerio object provided';
+        log.error(msg);
+        throw new Error(msg);
+    }
+
+    if (!$) {
+        $ = cheerio.load(html);
+    }
+
+    if (!selection && selectionBuilder) {
+        selection = selectionBuilder($);
+    }
+
+    return {$, html, selection};
+}
+
+/**
+ * Extracts the week date span text from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {string} The extracted data.
+ * @throws {Error} If the extraction fails.
+ */
+export function extractWeekDateSpan(input) {
     log.info("Starting to extract week date span");
-    let $ = typeof cheerioOrHtml === 'string' ? cheerio.load(cheerioOrHtml) : cheerioOrHtml;
+    const {$} = processExtractionInput(input);
     const $el = getCheerioSelectionOrThrow($, '#p1');
     const result = $el.text().toLowerCase();
     log.info(`Extracted week date span: [${result}]`);
@@ -42,13 +79,12 @@ export function extractWeekDateSpan(cheerioOrHtml) {
  */
 
 /**
- * Extracts the bible read data from the given HTML content.
- * @param {string | ReturnType<cheerio.CheerioAPI.load>} cheerioOrHtml - The HTML content to parse, or a Cheerio object.
- * @returns {Promise<Error | WeeklyBibleReadAssignment>} A promise that resolves to the extracted bible read data.
+ * Extracts the bible read data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<TreasuresTalkData>} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-export async function extractBibleRead(cheerioOrHtml) {
-    log.info("Starting to extract Bible read data");
-
+export async function extractBibleRead(input) {
     function extractBookNameFromTooltipCaption(caption) {
         const pattern = /^(.*?)(?=\d+:)/;
         const match = caption.match(pattern);
@@ -60,8 +96,9 @@ export async function extractBibleRead(cheerioOrHtml) {
         }
     }
 
-    let $ = typeof cheerioOrHtml === 'string' ? cheerio.load(cheerioOrHtml) : cheerioOrHtml;
-    const $selection = getCheerioSelectionOrThrow($, '#p2 a');
+    log.info("Starting to extract Bible read data");
+    const {$} = processExtractionInput(input);
+    const $anchorSelection = getCheerioSelectionOrThrow($, '#p2 a');
 
     const result = {
         bookName: "",
@@ -72,8 +109,8 @@ export async function extractBibleRead(cheerioOrHtml) {
     };
 
     let urlPathForLinks = '';
-    for (let i = 0; i < $selection.length; i++) {
-        const $anchor = $selection.eq(i);
+    for (let i = 0; i < $anchorSelection.length; i++) {
+        const $anchor = $anchorSelection.eq(i);
         const anchorRefExtractionData = buildAnchorRefExtractionData($anchor);
         log.debug(`Processing anchor at index [${i}], anchorRefExtractionData: [${JSON.stringify(anchorRefExtractionData)}]`);
 
@@ -111,7 +148,7 @@ export async function extractBibleRead(cheerioOrHtml) {
         log.debug(`Updated chapters: firstChapter=[${result.firstChapter}], lastChapter=[${result.lastChapter}]`);
     }
 
-    const languageCode = buildAnchorRefExtractionData($selection.eq(0)).sourceHref.slice(0, 3);
+    const languageCode = buildAnchorRefExtractionData($anchorSelection.eq(0)).sourceHref.slice(0, 3);
     for (let chapter = result.firstChapter; chapter <= result.lastChapter; chapter++) {
         const urlPathParts = urlPathForLinks.split('/');
         urlPathParts[urlPathParts.length - 1] = chapter;
@@ -121,6 +158,25 @@ export async function extractBibleRead(cheerioOrHtml) {
 
     log.info(`Extracted Bible read data: [${JSON.stringify(result)}]`);
     return result;
+}
+
+/**
+ * Extracts the section number from the given element's text.
+ * @param {Cheerio} $element
+ * @returns {number}
+ * @throws {Error} If the element's text doesn't match the expected format.
+ */
+function getSectionNumberFromElement($element) {
+    log.info("Extracting section number from element");
+    const elementText = cleanText($element.text());
+    if (!/^\d\./.test(elementText)) {
+        const msg = `Unexpected section number for element [${elementText}].`;
+        log.error(msg);
+        throw new Error(msg);
+    }
+    const sectionNumber = parseInt(elementText.split('.')[0], 10);
+    log.info(`Extracted section number: [${sectionNumber}]`);
+    return sectionNumber;
 }
 
 /**
@@ -165,20 +221,26 @@ function getTimeBoxFromElement($selection) {
  */
 
 /**
- * @param {Cheerio} treasuresTalkElement
- * @returns {TreasuresTalkData}
+ * Extracts the treasures talk data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<TreasuresTalkData>} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-async function extractTreasuresTalk(treasuresTalkElement) {
+export async function extractTreasuresTalk(input) {
     log.info("Extracting treasures talk data");
+
+    input.selectionBuilder = ($) => buildGodsTreasuresSelections($).treasuresTalk;
+    const {selection: $treasuresTalkSelection} = processExtractionInput(input);
+
     const result = {
-        sectionNumber: 1,
-        timeBox: getTimeBoxFromElement(treasuresTalkElement),
-        heading: cleanText(treasuresTalkElement.find(`h3`).text()),
+        sectionNumber: getSectionNumberFromElement($treasuresTalkSelection.find(CONSTANTS.LINE_WITH_SECTION_NUMBER_CSS_SELECTOR)),
+        timeBox: getTimeBoxFromElement($treasuresTalkSelection),
+        heading: cleanText($treasuresTalkSelection.find(`h3`).text()),
         points: [],
         footnotes: {},
     };
 
-    const $points = treasuresTalkElement.find(`> div > p`);
+    const $points = $treasuresTalkSelection.find(`> div > p`);
     log.debug(`Found [${$points.length}] points in the talk`);
 
     let footnoteKey = 0;
@@ -237,18 +299,21 @@ async function extractTreasuresTalk(treasuresTalkElement) {
  * @property {string} openEndedQuestion - The open-ended question text.
  */
 
-
 /**
- * @param {Cheerio} spiritualGems
- * @returns {SpiritualGemsData}
- * @throws {Error}
+ * Extracts the spiritual gems data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<TreasuresTalkData>} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-async function extractSpiritualGems(spiritualGems) {
+export async function extractSpiritualGems(input) {
     log.info("Extracting spiritual gems data");
-    const $content = spiritualGems.eq(1);
+
+    input.selectionBuilder = ($) => buildGodsTreasuresSelections($).spiritualGems;
+    const {selection: $spiritualGemsSelection} = processExtractionInput(input);
+    const $content = $spiritualGemsSelection.eq(1);
 
     const printedQuestionData = {
-        sectionNumber: 2,
+        sectionNumber: getSectionNumberFromElement($spiritualGemsSelection.eq(0)),
         timeBox: getTimeBoxFromElement($content),
         scriptureMnemonic: '',
         scriptureContents: '',
@@ -321,14 +386,19 @@ async function extractSpiritualGems(spiritualGems) {
  */
 
 /**
- * @param {Cheerio} bibleRead
- * @returns {BibleReadData}
+ * Extracts the bible reading data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<BibleReadData>} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-async function extractBibleReading(bibleRead) {
+export async function extractBibleReading(input) {
     log.info("Extracting Bible reading data");
-    const $content = bibleRead.eq(1);
+
+    input.selectionBuilder = ($) => buildGodsTreasuresSelections($).bibleRead;
+    const {selection: $bibleReadSelection} = processExtractionInput(input);
+    const $content = $bibleReadSelection.eq(1);
     const result = {
-        sectionNumber: 3,
+        sectionNumber: getSectionNumberFromElement($bibleReadSelection.eq(0)),
         timeBox: getTimeBoxFromElement($content),
         scriptureMnemonic: '',
         scriptureContents: '',
@@ -364,35 +434,6 @@ async function extractBibleReading(bibleRead) {
     return result;
 }
 
-/**
- * Extracts the section number from the given element's text.
- * @param {Cheerio} $element
- * @returns {number}
- * @throws {Error} If the element's text doesn't match the expected format.
- */
-function getSectionNumberFromElement($element) {
-    log.info("Extracting section number from element");
-    const elementText = cleanText($element.text());
-    if (!/^\d\./.test(elementText)) {
-        const msg = `Unexpected section number for element [${elementText}].`;
-        log.error(msg);
-        throw new Error(msg);
-    }
-    const sectionNumber = parseInt(elementText.split('.')[0], 10);
-    log.info(`Extracted section number: [${sectionNumber}]`);
-    return sectionNumber;
-}
-
-/**
- * @typedef {Object} FieldMinistryAssignmentData
- * @property {number} sectionNumber - The meeting section number.
- * @property {number} timeBox - The time box for the section.
- * @property {boolean} isStudentTask - Indicates whether this is a student task.
- * @property {string} headline - The headline for the ministry task.
- * @property {string} contents - The content of the assignment task.
- * @property {StudyPoint | null} studyPoint - The study point associated with this task or null if none which means isStudentTask is false.
- */
-
 function buildHeadlineToContentGroups(fieldMinistry, $) {
     return fieldMinistry.toArray().reduce((acc, el) => {
         const $el = $(el);
@@ -411,13 +452,28 @@ function buildHeadlineToContentGroups(fieldMinistry, $) {
 }
 
 /**
+ * @typedef {Object} FieldMinistryAssignmentData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {boolean} isStudentTask - Indicates whether this is a student task.
+ * @property {string} headline - The headline for the ministry task.
+ * @property {string} contents - The content of the assignment task.
+ * @property {StudyPoint | null} studyPoint - The study point associated with this task or null if none which means isStudentTask is false.
+ */
+
+/**
  * @param {Cheerio} fieldMinistry
  * @param {cheerio.Root} $
  * @returns {FieldMinistryAssignmentData[]}
  */
-async function extractFieldMinistry(fieldMinistry, $) {
-    log.info("Extracting field ministry data");
 
+/**
+ * Extracts the field ministry data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<FieldMinistryAssignmentData[]>} The extracted data.
+ * @throws {Error} If the extraction fails.
+ */
+export async function extractFieldMinistry(input) {
     function extractBetweenParentheses(text) {
         const extractRegex = /\)\s*\s*(.*?)\s*(?=\s*\()/;
         const match = text.match(extractRegex);
@@ -427,7 +483,10 @@ async function extractFieldMinistry(fieldMinistry, $) {
         return text;
     }
 
-    const assignmentGroups = buildHeadlineToContentGroups(fieldMinistry, $);
+    log.info("Extracting field ministry data");
+    input.selectionBuilder = ($) => buildFieldMinistrySelections($).fieldMinistry;
+    const {$, selection: $fieldMinistrySelection} = processExtractionInput(input);
+    const assignmentGroups = buildHeadlineToContentGroups($fieldMinistrySelection, $);
 
     const promises = assignmentGroups.map(async ({heading, contents: [assignmentContents]}) => {
         const contentsText = cleanText(assignmentContents.text());
@@ -443,30 +502,33 @@ async function extractFieldMinistry(fieldMinistry, $) {
 
         log.debug(`Processing assignment: [${result.headline}], isStudentTask=[${result.isStudentTask}]`);
 
-        if (result.isStudentTask) {
-            const $studyPointAnchor = assignmentContents.find(`a`).slice(-1);
-            if ($studyPointAnchor.length !== 1) {
-                const msg = `Unable to find study point anchor.`;
-                log.error(msg);
-                throw new Error(msg);
-            }
-            const [err, json] = await fetchAndParseAnchorReferenceOrThrow($studyPointAnchor);
-            if (err) {
-                throw err;
-            }
-            result.studyPoint = {
-                mnemonic: cleanText($studyPointAnchor.text()),
-                contents: json.parsedContent,
-            };
-            result.contents = extractBetweenParentheses(contentsText);
-            log.debug(`Added study poin`);
+        if (!result.isStudentTask) {
+            log.info(`Extracted field ministry assignment`);
+            return result;
         }
+
+        const $studyPointAnchor = assignmentContents.find(`a`).slice(-1);
+        if ($studyPointAnchor.length !== 1) {
+            const msg = `Unable to find study point anchor.`;
+            log.error(msg);
+            throw new Error(msg);
+        }
+        const [err, json] = await fetchAndParseAnchorReferenceOrThrow($studyPointAnchor);
+        if (err) {
+            throw err;
+        }
+        result.studyPoint = {
+            mnemonic: cleanText($studyPointAnchor.text()),
+            contents: json.parsedContent,
+        };
+        result.contents = extractBetweenParentheses(contentsText);
+        log.debug(`Added study point`);
 
         log.info(`Extracted field ministry assignment`);
         return result;
     });
 
-    return await Promise.all(promises);
+    return Promise.all(promises);
 }
 
 /**
@@ -477,26 +539,27 @@ async function extractFieldMinistry(fieldMinistry, $) {
  */
 
 /**
- * @param {Cheerio} christianLiving
- * @param {cheerio.Root} $
- * @returns {ChristianLivingSectionData[]}
+ * Extracts the Christian Living section data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<ChristianLivingSectionData[]>} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-function extractChristianLiving(christianLiving, $) {
-    log.info("Extracting Christian Living section data");
-
+export function extractChristianLiving(input) {
     function polishElementText($el) {
         let result = $el.text();
         result = cleanText(result);
         result = collapseConsecutiveLineBreaks(result);
         return result;
     }
-
     function takeOutTimeBoxText(text) {
         text = text.join('\n');
         return text.split(')').slice(1).join(')').trim();
     }
 
-    const sectionGroups = buildHeadlineToContentGroups(christianLiving, $);
+    log.info("Extracting Christian Living section data");
+    input.selectionBuilder = ($) => buildChristianLivingSelections($).christianLiving
+    const {$, selection: $christianLivingSelection} = processExtractionInput(input);
+    const sectionGroups = buildHeadlineToContentGroups($christianLivingSelection, $);
 
     return sectionGroups.map(({heading, contents}) => {
         const result = {
@@ -518,17 +581,21 @@ function extractChristianLiving(christianLiving, $) {
  */
 
 /**
- * @param {Cheerio} bibleStudy
- * @param {cheerio.Root} $
- * @returns {CongregationBibleStudyData}
+ * Extracts the Congregation Bible study data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {CongregationBibleStudyData} The extracted data.
+ * @throws {Error} If the extraction fails.
  */
-function extractBibleStudy(bibleStudy, $) {
+export function extractBibleStudy(input) {
     log.info("Extracting Bible study section data");
+    input.selectionBuilder = ($) => buildChristianLivingSelections($).bibleStudy;
+    const {$, selection: $bibleStudySelection} = processExtractionInput(input);
+
     const result = {
-        sectionNumber: getSectionNumberFromElement(bibleStudy.eq(0)),
-        timeBox: getTimeBoxFromElement(bibleStudy),
-        contents: cleanText(bibleStudy.text()),
-        references: bibleStudy.eq(1)
+        sectionNumber: getSectionNumberFromElement($bibleStudySelection.eq(0)),
+        timeBox: getTimeBoxFromElement($bibleStudySelection),
+        contents: cleanText($bibleStudySelection.text()),
+        references: $bibleStudySelection.eq(1)
             .find('a')
             .map((i, el) => {
                 const $el = $(el);
@@ -536,69 +603,37 @@ function extractBibleStudy(bibleStudy, $) {
             })
             .get(),
     };
+
     log.info(`Extracted Bible study data`);
     return result;
 }
 
-async function _extractFullWeekProgram(html) {
+/**
+ * @typedef {Object} FullWeekProgramData
+ * @property {ReturnType<extractWeekDateSpan>} weekDateSpan - The date span of the week.
+ * @property {ReturnType<extractBibleStudy>} bibleRead - The bible read data.
+ * @property {ReturnType<extractTreasuresTalk>} treasuresTalk - The treasures talk data.
+ * @property {ReturnType<extractSpiritualGems>} spiritualGems - The spiritual gems' data.
+ * @property {ReturnType<extractBibleReading>} bibleReading - The bible reading data.
+ * @property {ReturnType<extractFieldMinistry>} fieldMinistry - The field ministry data.
+ * @property {ReturnType<extractChristianLiving>} christianLiving - The christian living data.
+ * @property {ReturnType<extractBibleStudy>} bibleStudy - The congregation bible study data.
+ */
+
+/**
+ * Extracts the full week program data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {FullWeekProgramData} The extracted data.
+ * @throws {Error} If the extraction fails.
+ */
+export async function extractFullWeekProgram(input) {
+
     log.info("Starting full week program extraction");
+    const inputObj = processExtractionInput(input);
+    const {$} = inputObj;
+    const weekDateSpan = extractWeekDateSpan(inputObj);
+    const programGroups = buildRelevantProgramGroupSelections($);
 
-    function buildRelevantProgramGroupSelections(cheerioParsed) {
-        let msg = '';
-        const fieldMinistryHeadline = cheerioParsed(CONSTANTS.FIELD_MINISTRY_HEADLINE_CSS_SELECTOR);
-        const christianLivingHeadline = cheerioParsed(CONSTANTS.CHRISTIAN_LIVING_HEADLINE_CSS_SELECTOR);
-        if (fieldMinistryHeadline.find(`> h2`).length !== 1 && christianLivingHeadline.find(`> h2`).length !== 1) {
-            msg = `Unexpected number of elements for field ministry and christian living.`;
-            log.error(msg);
-            throw new Error(msg);
-        }
-
-        function assertForH3OrThrow(selection) {
-            if (!selection.is(`h3`)) {
-                msg = `Unexpected element detected. Expected h3, got ${selection[0].name}`;
-                log.error(msg);
-                throw new Error(msg);
-            }
-        }
-
-        const middleSong = cheerioParsed(CONSTANTS.MIDDLE_SONG_CSS_SELECTOR);
-        const finalSong = cheerioParsed(CONSTANTS.FINAL_SONG_CSS_SELECTOR);
-        assertForH3OrThrow(middleSong);
-        assertForH3OrThrow(finalSong);
-
-        const treasuresTalk = cheerioParsed(CONSTANTS.TREASURES_TALK_CSS_SELECTOR);
-        const points2and3 = treasuresTalk.nextUntil(fieldMinistryHeadline);
-        if (points2and3.length !== 4) {
-            msg = `Unexpected number of elements for points 2 and 3. Expected 4, got ${points2and3.length}`;
-            log.error(msg);
-            throw new Error(msg);
-        }
-        const spiritualGems = points2and3.slice(0, 2);
-        const bibleRead = points2and3.slice(2, 4);
-        const fieldMinistry = fieldMinistryHeadline.nextUntil(christianLivingHeadline);
-        const bibleStudyHeadline = finalSong.prevAll('h3').first();
-        assertForH3OrThrow(bibleStudyHeadline);
-        let christianLiving = middleSong.nextUntil(bibleStudyHeadline);
-        const precedingSiblings = finalSong.prevUntil(bibleStudyHeadline);
-        const bibleStudy = precedingSiblings.add(bibleStudyHeadline);
-
-        return {
-            introduction: cheerioParsed(CONSTANTS.INTRODUCTION_CSS_SELECTOR),
-            treasuresTalk,
-            spiritualGems,
-            bibleRead,
-            fieldMinistry,
-            middleSong,
-            christianLiving,
-            bibleStudy,
-            finalSong,
-        };
-    }
-
-    const cheerioParsed = cheerio.load(html);
-
-    const weekDateSpan = extractWeekDateSpan(cheerioParsed);
-    const programGroups = buildRelevantProgramGroupSelections(cheerioParsed);
     const [
         bibleRead,
         treasuresTalk,
@@ -608,13 +643,13 @@ async function _extractFullWeekProgram(html) {
         christianLiving,
         bibleStudy,
     ] = await Promise.all([
-        extractBibleRead(cheerioParsed),
-        extractTreasuresTalk(programGroups.treasuresTalk),
-        extractSpiritualGems(programGroups.spiritualGems),
-        extractBibleReading(programGroups.bibleRead),
-        extractFieldMinistry(programGroups.fieldMinistry, cheerioParsed),
-        extractChristianLiving(programGroups.christianLiving, cheerioParsed),
-        extractBibleStudy(programGroups.bibleStudy, cheerioParsed),
+        extractBibleRead({$, selection: programGroups.bibleRead}),
+        extractTreasuresTalk({$, selection: programGroups.treasuresTalk}),
+        extractSpiritualGems({$, selection: programGroups.spiritualGems}),
+        extractBibleReading({$, selection: programGroups.bibleRead}),
+        extractFieldMinistry({$, selection: programGroups.fieldMinistry}),
+        extractChristianLiving({$, selection: programGroups.christianLiving}),
+        extractBibleStudy({$, selection: programGroups.bibleStudy}),
     ]).catch(err => {
         throw err;
     });
@@ -633,11 +668,3 @@ async function _extractFullWeekProgram(html) {
     log.info("Successfully extracted full week program");
     return result;
 }
-
-/**
- * Extracts the full week's program from the given HTML content.
- * @param {string} html - The HTML content to parse.
- * @returns {Promise<[Error | null, ReturnType<_extractFullWeekProgram> | null]>} A promise that resolves to a tuple where the first element is an
- *      Error object (or null if no error occurred) and the second element is the full week's program (or null if an error occurred).
- */
-export const extractFullWeekProgram = withErrorHandling(_extractFullWeekProgram);
