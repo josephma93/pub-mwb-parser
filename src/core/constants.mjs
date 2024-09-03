@@ -3,7 +3,8 @@ const CONSTANTS = Object.freeze(Object.seal({
 
     ARTICLE_CSS_SELECTOR: '#article',
     INTRODUCTION_CSS_SELECTOR: '#p3',
-    TEN_MIN_TALK_CSS_SELECTOR: '#tt8',
+    TREASURES_TALK_CSS_SELECTOR: '#tt8',
+    LINE_WITH_TIME_BOX_CSS_SELECTOR: '.du-color--textSubdued',
 
     MIDDLE_SONG_CSS_SELECTOR: '.bodyTxt > .dc-icon--music:not(:first-child)',
     FINAL_SONG_CSS_SELECTOR: '.bodyTxt > h3:last-child',

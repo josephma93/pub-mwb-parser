@@ -1,14 +1,14 @@
 import * as cheerio from 'cheerio';
 import logger from "../core/logger.mjs";
-import {getCheerioSelectionOrThrow, withErrorHandling} from "../core/util.mjs";
+import {cleanText, getCheerioSelectionOrThrow, withErrorHandling} from "../core/util.mjs";
 import {
     buildAnchorRefExtractionData,
     detectReferenceDataType,
-    fetchAnchorReferenceData, fetchAndParseAnchorReferenceOrThrow,
+    fetchAnchorReferenceData,
+    fetchAndParseAnchorReferenceOrThrow,
     isJsonContentAcceptableForReferenceExtraction
 } from "./tooltip_data_retriever.mjs";
 import CONSTANTS from "../core/constants.mjs";
-import {cleanText} from "../core/reference_text_parser.mjs";
 
 const log = logger.child(logger.bindings());
 
@@ -105,6 +105,29 @@ export async function extractBibleRead(cheerioOrHtml) {
 }
 
 /**
+ * Finds and extracts the time box number from the given selection.
+ * @param {Cheerio} $selection
+ * @returns {number}
+ * @throws {Error} If time box is not found.
+ */
+function getTimeBoxFromElement($selection) {
+    const msg = `No selection found for selector [${CONSTANTS.LINE_WITH_TIME_BOX_CSS_SELECTOR}]`;
+    let $lineWithTimeBox = $selection.find(CONSTANTS.LINE_WITH_TIME_BOX_CSS_SELECTOR);
+    if (!$lineWithTimeBox.length) {
+        log.error(msg);
+        throw new Error(msg);
+    }
+
+    const timeMatch = cleanText($lineWithTimeBox.text()).match(/\((\d+)\s*mins?\.\)/);
+    if (timeMatch) {
+        return parseInt(timeMatch[1], 10);
+    }
+
+    log.error(msg);
+    throw new Error(msg);
+}
+
+/**
  * @typedef {Object} TalkPoint
  * @property {string} text - The main text associated with the point.
  * @property {number[]} footnotes - An array of numerically unique integers referencing footnotes.
@@ -112,6 +135,8 @@ export async function extractBibleRead(cheerioOrHtml) {
 
 /**
  * @typedef {Object} TenMinTalkData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
  * @property {string} heading - The heading for the section.
  * @property {TalkPoint[]} points - An array of points, each containing text and associated footnotes.
  * @property {Object<number, string>} footnotes - An object containing footnotes indexed by a numerically unique key.
@@ -123,6 +148,8 @@ export async function extractBibleRead(cheerioOrHtml) {
  */
 async function extractTenMinTalk(tenMinTalkElement) {
     const result = {
+        sectionNumber: 1,
+        timeBox: getTimeBoxFromElement(tenMinTalkElement),
         heading: cleanText(tenMinTalkElement.find(`h3`).text()),
         points: [],
         footnotes: {},
@@ -159,6 +186,87 @@ async function extractTenMinTalk(tenMinTalkElement) {
     return result;
 }
 
+/**
+ * @typedef {Object} AnswerSource
+ * @property {string} contents - The detailed content for the answer.
+ * @property {string} mnemonic - The reference or mnemonic for the content.
+ */
+
+/**
+ * @typedef {Object} PrintedQuestion
+ * @property {AnswerSource[]} answerSources - An array of sources containing content and mnemonics.
+ * @property {string} question - The printed question.
+ * @property {string} scriptureContents - The scripture text associated with the question.
+ * @property {string} scriptureMnemonic - The scripture reference or mnemonic.
+ */
+
+/**
+ * @typedef {Object} SpiritualGemsData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {PrintedQuestion} printedQuestionData - The printed question details, including answer sources and scripture references.
+ * @property {string} openEndedQuestion - The open-ended question text.
+ */
+
+
+/**
+ * @param {Cheerio} spiritualGems
+ * @returns {SpiritualGemsData}
+ * @throws {Error}
+ */
+async function extractSpiritualGems(spiritualGems) {
+    const $content = spiritualGems.eq(1);
+
+    const printedQuestionData = {
+            sectionNumber: 2,
+            timeBox: getTimeBoxFromElement($content),
+            scriptureMnemonic: '',
+            scriptureContents: '',
+            question: '',
+            answerSources: [],
+        };
+
+        const $scriptureAnchorSelection = $content.find(`a.b`);
+        if ($scriptureAnchorSelection.length !== 1) {
+            const msg = `Unexpected number of elements for scripture anchor.`;
+            log.error(msg);
+            throw new Error(msg);
+        }
+
+        printedQuestionData.scriptureMnemonic = cleanText($scriptureAnchorSelection.text());
+        let [err, json] = await fetchAndParseAnchorReferenceOrThrow($scriptureAnchorSelection);
+        if (err) {
+            throw err;
+        }
+        printedQuestionData.scriptureContents = json.parsedContent;
+
+        printedQuestionData.question = $scriptureAnchorSelection.parent()
+            .contents()
+            .filter(function(){return this.nodeType === 3 /* TEXT_NODE */})
+            .eq(0)
+            .text()
+            .slice(2, -2);
+
+        const $answerSelection = $content.find(`a`).slice(1); // Skip the first element, which is the scripture reference.
+
+        for (let i = 0; i < $answerSelection.length; i++) {
+            const $answer = $answerSelection.eq(i);
+            [err, json] = await fetchAndParseAnchorReferenceOrThrow($answer);
+            if (err) {
+                throw err;
+            }
+            printedQuestionData.answerSources.push({
+                contents: json.parsedContent,
+                mnemonic: cleanText($answer.text()),
+            });
+        }
+
+    return {
+        printedQuestionData,
+        openEndedQuestion: cleanText($content.find(`li.du-margin-top--8 p`).text()),
+    };
+}
+
 async function _extractFullWeekProgram(html) {
     function buildRelevantProgramGroupSelections(cheerioParsed) {
         let msg = '';
@@ -183,8 +291,8 @@ async function _extractFullWeekProgram(html) {
         assertForH3OrThrow(middleSong);
         assertForH3OrThrow(finalSong);
 
-        const tenMinTalk = cheerioParsed(CONSTANTS.TEN_MIN_TALK_CSS_SELECTOR);
-        const points2and3 = tenMinTalk.nextUntil(fieldMinistryHeadline);
+        const treasuresTalk = cheerioParsed(CONSTANTS.TREASURES_TALK_CSS_SELECTOR);
+        const points2and3 = treasuresTalk.nextUntil(fieldMinistryHeadline);
         if (points2and3.length !== 4) {
             msg = `Unexpected number of elements for points 2 and 3. Expected 4, got ${points2and3.length}`;
             log.error(msg);
@@ -201,7 +309,7 @@ async function _extractFullWeekProgram(html) {
 
         return {
             introduction: cheerioParsed(CONSTANTS.INTRODUCTION_CSS_SELECTOR),
-            tenMinTalk,
+            treasuresTalk,
             spiritualGems,
             bibleRead,
             fieldMinistry,
@@ -211,16 +319,19 @@ async function _extractFullWeekProgram(html) {
             finalSong,
         };
     }
+
     const cheerioParsed = cheerio.load(html);
 
     const weekDateSpan = extractWeekDateSpan(cheerioParsed);
     const programGroups = buildRelevantProgramGroupSelections(cheerioParsed);
     const [
         bibleRead,
-        tenMinTalk,
+        treasuresTalk,
+        spiritualGemsData,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
-        extractTenMinTalk(programGroups.tenMinTalk),
+        extractTenMinTalk(programGroups.treasuresTalk),
+        extractSpiritualGems(programGroups.spiritualGems),
     ]).catch(err => {
         throw err;
     });
@@ -228,7 +339,8 @@ async function _extractFullWeekProgram(html) {
     return {
         weekDateSpan,
         bibleRead,
-        tenMinTalk,
+        treasuresTalk,
+        spiritualGemsData,
     }
 }
 

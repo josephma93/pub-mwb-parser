@@ -1,30 +1,5 @@
 import * as cheerio from 'cheerio';
-
-/**
- * @param {any} value
- * @returns {string}
- */
-function enforceIsString(value) {
-    return (typeof value === 'string' ? value : '');
-}
-
-/**
- * Trims, and removes all non-breaking space characters from the given text.
- * @param {any} txt
- * @returns {string} Cleaned text or empty string if the given value is not a string.
- */
-export function cleanText(txt) {
-    return enforceIsString(txt).trim().replaceAll(' ', ' ');
-}
-
-/**
- * Collapses consecutive line breaks with a single line break in the given text.
- * @param {any} txt
- * @returns {string} Collapsed text or empty string if the given value is not a string.
- */
-export function collapseConsecutiveLineBreaks(txt) {
-    return enforceIsString(txt).replaceAll(/\n+/g, '\n');
-}
+import {cleanText, collapseConsecutiveLineBreaks} from "./util.mjs";
 
 /**
  * @param {string} content - The HTML content to parse.
