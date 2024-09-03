@@ -156,7 +156,7 @@ function getTimeBoxFromElement($selection) {
  */
 
 /**
- * @typedef {Object} TenMinTalkData
+ * @typedef {Object} TreasuresTalkData
  * @property {number} sectionNumber - The meeting section number.
  * @property {number} timeBox - The time box for the section.
  * @property {string} heading - The heading for the section.
@@ -165,20 +165,20 @@ function getTimeBoxFromElement($selection) {
  */
 
 /**
- * @param {Cheerio} tenMinTalkElement
- * @returns {TenMinTalkData}
+ * @param {Cheerio} treasuresTalkElement
+ * @returns {TreasuresTalkData}
  */
-async function extractTenMinTalk(tenMinTalkElement) {
-    log.info("Extracting ten-minute talk data");
+async function extractTreasuresTalk(treasuresTalkElement) {
+    log.info("Extracting treasures talk data");
     const result = {
         sectionNumber: 1,
-        timeBox: getTimeBoxFromElement(tenMinTalkElement),
-        heading: cleanText(tenMinTalkElement.find(`h3`).text()),
+        timeBox: getTimeBoxFromElement(treasuresTalkElement),
+        heading: cleanText(treasuresTalkElement.find(`h3`).text()),
         points: [],
         footnotes: {},
     };
 
-    const $points = tenMinTalkElement.find(`> div > p`);
+    const $points = treasuresTalkElement.find(`> div > p`);
     log.debug(`Found [${$points.length}] points in the talk`);
 
     let footnoteKey = 0;
@@ -609,7 +609,7 @@ async function _extractFullWeekProgram(html) {
         bibleStudy,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
-        extractTenMinTalk(programGroups.treasuresTalk),
+        extractTreasuresTalk(programGroups.treasuresTalk),
         extractSpiritualGems(programGroups.spiritualGems),
         extractBibleReading(programGroups.bibleRead),
         extractFieldMinistry(programGroups.fieldMinistry, cheerioParsed),
