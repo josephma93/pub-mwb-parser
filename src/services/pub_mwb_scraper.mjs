@@ -218,48 +218,50 @@ async function extractSpiritualGems(spiritualGems) {
     const $content = spiritualGems.eq(1);
 
     const printedQuestionData = {
-            sectionNumber: 2,
-            timeBox: getTimeBoxFromElement($content),
-            scriptureMnemonic: '',
-            scriptureContents: '',
-            question: '',
-            answerSources: [],
-        };
+        sectionNumber: 2,
+        timeBox: getTimeBoxFromElement($content),
+        scriptureMnemonic: '',
+        scriptureContents: '',
+        question: '',
+        answerSources: [],
+    };
 
-        const $scriptureAnchorSelection = $content.find(`a.b`);
-        if ($scriptureAnchorSelection.length !== 1) {
-            const msg = `Unexpected number of elements for scripture anchor.`;
-            log.error(msg);
-            throw new Error(msg);
-        }
+    const $scriptureAnchorSelection = $content.find(`a.b`);
+    if ($scriptureAnchorSelection.length !== 1) {
+        const msg = `Unexpected number of elements for scripture anchor.`;
+        log.error(msg);
+        throw new Error(msg);
+    }
 
-        printedQuestionData.scriptureMnemonic = cleanText($scriptureAnchorSelection.text());
-        let [err, json] = await fetchAndParseAnchorReferenceOrThrow($scriptureAnchorSelection);
+    printedQuestionData.scriptureMnemonic = cleanText($scriptureAnchorSelection.text());
+    let [err, json] = await fetchAndParseAnchorReferenceOrThrow($scriptureAnchorSelection);
+    if (err) {
+        throw err;
+    }
+    printedQuestionData.scriptureContents = json.parsedContent;
+
+    printedQuestionData.question = $scriptureAnchorSelection.parent()
+        .contents()
+        .filter(function () {
+            return this.nodeType === 3 /* TEXT_NODE */
+        })
+        .eq(0)
+        .text()
+        .slice(2, -2);
+
+    const $answerSelection = $content.find(`a`).slice(1); // Skip the first element, which is the scripture reference.
+
+    for (let i = 0; i < $answerSelection.length; i++) {
+        const $answer = $answerSelection.eq(i);
+        [err, json] = await fetchAndParseAnchorReferenceOrThrow($answer);
         if (err) {
             throw err;
         }
-        printedQuestionData.scriptureContents = json.parsedContent;
-
-        printedQuestionData.question = $scriptureAnchorSelection.parent()
-            .contents()
-            .filter(function(){return this.nodeType === 3 /* TEXT_NODE */})
-            .eq(0)
-            .text()
-            .slice(2, -2);
-
-        const $answerSelection = $content.find(`a`).slice(1); // Skip the first element, which is the scripture reference.
-
-        for (let i = 0; i < $answerSelection.length; i++) {
-            const $answer = $answerSelection.eq(i);
-            [err, json] = await fetchAndParseAnchorReferenceOrThrow($answer);
-            if (err) {
-                throw err;
-            }
-            printedQuestionData.answerSources.push({
-                contents: json.parsedContent,
-                mnemonic: cleanText($answer.text()),
-            });
-        }
+        printedQuestionData.answerSources.push({
+            contents: json.parsedContent,
+            mnemonic: cleanText($answer.text()),
+        });
+    }
 
     return {
         printedQuestionData,
@@ -268,13 +270,18 @@ async function extractSpiritualGems(spiritualGems) {
 }
 
 /**
+ * @typedef {Object} StudyPoint
+ * @property {string} contents - The content of the study point.
+ * @property {string} mnemonic - The mnemonic or reference for the study point.
+ */
+
+/**
  * @typedef {Object} BibleReadData
  * @property {number} sectionNumber - The meeting section number.
  * @property {number} timeBox - The time box for the section.
  * @property {string} scriptureMnemonic - A mnemonic or reference for the scripture passage.
  * @property {string} scriptureContents - The full text of the scripture passage.
- * @property {string} studyPointMnemonic - A mnemonic or reference for the study point.
- * @property {string} studyPointContents - The contents of the study point associated with the study lesson.
+ * @property {StudyPoint} studyPoint - The details of the study point associated with the study lesson.
  */
 
 /**
@@ -288,8 +295,10 @@ async function extractBibleReading(bibleRead) {
         timeBox: getTimeBoxFromElement($content),
         scriptureMnemonic: '',
         scriptureContents: '',
-        studyPointMnemonic: '',
-        studyPointContents: '',
+        studyPoint: {
+            mnemonic: '',
+            contents: '',
+        },
     };
 
     const $anchorSelection = $content.find(`a`);
@@ -307,14 +316,114 @@ async function extractBibleReading(bibleRead) {
     }
     result.scriptureMnemonic = cleanText($scriptureAnchor.text());
     result.scriptureContents = json.parsedContent;
-    result.studyPointMnemonic = cleanText($studyPointAnchor.text());
+    result.studyPoint.mnemonic = cleanText($studyPointAnchor.text());
     [err, json] = await fetchAndParseAnchorReferenceOrThrow($studyPointAnchor);
     if (err) {
         throw err;
     }
-    result.studyPointContents = json.parsedContent;
+    result.studyPoint.contents = json.parsedContent;
 
     return result;
+}
+
+/**
+ * Extracts the section number from the given element's text.
+ * @param {Cheerio} $element
+ * @returns {number}
+ * @throws {Error} If the element's text doesn't match the expected format.
+ */
+function getSectionNumberFromElement($element) {
+    const elementText = cleanText($element.text());
+    if (!/^\d\./.test(elementText)) {
+        const msg = `Unexpected section number for element [${elementText}].`;
+        log.error(msg);
+        throw new Error(msg);
+    }
+    return parseInt(elementText.split('.')[0], 10);
+}
+
+/**
+ * @typedef {Object} FieldMinistryAssignmentData
+ * @property {number} sectionNumber - The meeting section number.
+ * @property {number} timeBox - The time box for the section.
+ * @property {boolean} isStudentTask - Indicates whether this is a student task.
+ * @property {string} headline - The headline for the ministry task.
+ * @property {string} contents - The content of the ministry task.
+ * @property {StudyPoint | null} studyPoint - The study point associated with this task or null if none which means isStudentTask is false.
+ */
+
+/**
+ * @param {Cheerio} fieldMinistry
+ * @param {cheerio.Root} $
+ * @returns {FieldMinistryAssignmentData[]}
+ */
+async function extractFieldMinistry(fieldMinistry, $) {
+
+    function extractBetweenParentheses(text) {
+        const extractRegex = /\)\s*\s*(.*?)\s*(?=\s*\()/;
+        const match = text.match(extractRegex);
+        if (match) {
+            return match[1];
+        }
+        return text;
+    }
+
+    const assignmentGroups = fieldMinistry.toArray().reduce((acc, el) => {
+        const $el = $(el);
+
+        if ($el.is('h3')) {
+            acc.push({
+                heading: $el,
+                contents: null,
+            });
+            return acc;
+        }
+        const currentGroup = acc.at(-1);
+        if (!currentGroup || currentGroup.contents !== null) {
+            const msg = `Unexpected element detected. Expected h3 or null, got ${$el[0].tagname}`;
+            log.error(msg);
+            throw new Error(msg);
+        }
+
+        currentGroup.contents = $el;
+
+        return acc;
+    }, []);
+
+    const promises = assignmentGroups.map(async ({heading, contents}) => {
+        const contentsText = cleanText(contents.text());
+        const result = {
+            sectionNumber: getSectionNumberFromElement(heading),
+            timeBox: getTimeBoxFromElement(contents),
+            // Student tasks have a time inside parentheses and a study point inside parentheses.
+            isStudentTask: /\(.*?\).*?\(.*?\)/.test(contentsText),
+            headline: cleanText(heading.text()).slice(3),
+            contents: contentsText,
+            studyPoint: null,
+        };
+
+        if (result.isStudentTask) {
+            const $studyPointAnchor = contents.find(`a`).slice(-1);
+            if ($studyPointAnchor.length !== 1) {
+                const msg = `Unable to find study point anchor.`;
+                log.error(msg);
+                throw new Error(msg);
+            }
+            const [err, json] = await fetchAndParseAnchorReferenceOrThrow($studyPointAnchor);
+            if (err) {
+                throw err;
+            }
+            result.studyPoint = {
+                mnemonic: cleanText($studyPointAnchor.text()),
+                contents: json.parsedContent,
+            };
+            result.contents = extractBetweenParentheses(contentsText);
+        }
+
+        return result;
+    });
+
+    return await Promise.all(promises);
 }
 
 async function _extractFullWeekProgram(html) {
@@ -379,11 +488,13 @@ async function _extractFullWeekProgram(html) {
         treasuresTalk,
         spiritualGemsData,
         bibleReading,
+        fieldMinistry,
     ] = await Promise.all([
         extractBibleRead(cheerioParsed),
         extractTenMinTalk(programGroups.treasuresTalk),
         extractSpiritualGems(programGroups.spiritualGems),
         extractBibleReading(programGroups.bibleRead),
+        extractFieldMinistry(programGroups.fieldMinistry, cheerioParsed),
     ]).catch(err => {
         throw err;
     });
@@ -394,6 +505,7 @@ async function _extractFullWeekProgram(html) {
         treasuresTalk,
         spiritualGemsData,
         bibleReading,
+        fieldMinistry,
     }
 }
 
