@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node --env-file=.env ./src/app.mjs",
     "debug": "node --inspect-brk --env-file=.env ./src/app.mjs",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +15,8 @@
     "@types/cheerio": "^0.22.35",
     "cheerio": "^1.0.0",
     "pino": "^9.3.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
