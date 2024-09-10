@@ -41,20 +41,24 @@ const log = logger.child(logger.bindings());
  * @throws {Error} If something is wrong with the input.
  */
 export function processExtractionInput({$, html, selection, selectionBuilder}) {
+    // Either a cheerio object or HTML string must be provided
     if (!$ && !html) {
         const msg = 'No HTML or Cheerio object provided';
         log.error(msg);
         throw new Error(msg);
     }
 
+    // When cheerio is missing we create it from the HTML
     if (!$) {
         $ = cheerio.load(html);
     }
 
+    // If there is no selection, we build it if there is a selection builder
     if (!selection && selectionBuilder) {
         selection = selectionBuilder($);
     }
 
+    // Put together an object with all values together for usage
     return {$, html, selection};
 }
 

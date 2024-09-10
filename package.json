@@ -1,7 +1,8 @@
 {
   "name": "pub-mwb-parser",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "app.mjs",
+  "type": "module",
   "scripts": {
     "start": "node --env-file=.env ./src/app.mjs",
     "debug": "node --inspect-brk --env-file=.env ./src/app.mjs",
