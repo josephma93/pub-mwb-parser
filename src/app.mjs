@@ -9,7 +9,7 @@ import {
     extractFullWeekProgram,
     extractSpiritualGems,
     extractTreasuresTalk,
-    extractWeekDateSpan
+    extractWeekDateSpan, extractSongData
 } from "./services/pub_mwb_scraper.mjs";
 
 logger.info("Starting app");
@@ -26,6 +26,8 @@ if (err) {
     let result = await extractWeeklyBibleRead({html});
     console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 
+    result = await extractSongData({html});
+    console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);
 
     result = await extractTreasuresTalk({html});
     console.log(`errorOrResult: [${JSON.stringify(result, null, 2)}]`);

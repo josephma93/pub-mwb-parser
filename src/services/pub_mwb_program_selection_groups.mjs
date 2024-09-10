@@ -33,15 +33,18 @@ function assertHeadlineDOMStructure(fieldMinistryHeadline, christianLivingHeadli
 /**
  * Retrieve and validate the songs (middle and final).
  * @param {ReturnType<CheerioAPI>} $ - The cheerio instance.
- * @returns {{ middleSong: Cheerio, finalSong: Cheerio }} The middle and final song elements.
+ * @returns {{ songs: Cheerio, startingSong: Cheerio, middleSong: Cheerio, closingSong: Cheerio }} The selections.
  * @throws {Error} If the DOM structure is not as expected.
  */
-function getAndValidateSongSelections($) {
+export function getAndValidateSongSelections($) {
+    const startingSong = $(CONSTANTS.STARTING_SONG_CSS_SELECTOR);
     const middleSong = $(CONSTANTS.MIDDLE_SONG_CSS_SELECTOR);
-    const finalSong = $(CONSTANTS.FINAL_SONG_CSS_SELECTOR);
+    const closingSong = $(CONSTANTS.FINAL_SONG_CSS_SELECTOR);
+    assertIsH3(startingSong);
     assertIsH3(middleSong);
-    assertIsH3(finalSong);
-    return { middleSong, finalSong };
+    assertIsH3(closingSong);
+    const songs = $([startingSong, middleSong, closingSong]);
+    return { songs, startingSong, middleSong, closingSong };
 }
 
 /**
@@ -91,15 +94,15 @@ export function buildGodsTreasuresSelections($) {
  * Retrieve and validate the Christian Living section.
  * @param {ReturnType<CheerioAPI>} $ - The cheerio instance.
  * @param {Cheerio} middleSong - The middle song element.
- * @param {Cheerio} finalSong - The final song element.
+ * @param {Cheerio} closingSong - The final song element.
  * @returns {ChristianLivingSelections} The Christian Living section and the Bible study headline.
  * @throws {Error} If the DOM structure is not as expected.
  */
-function getAndValidateChristianLivingSelections($, middleSong, finalSong) {
-    const bibleStudyHeadline = finalSong.prevAll('h3').first();
+function getAndValidateChristianLivingSelections($, middleSong, closingSong) {
+    const bibleStudyHeadline = closingSong.prevAll('h3').first();
     assertIsH3(bibleStudyHeadline);
     let christianLiving = middleSong.nextUntil(bibleStudyHeadline);
-    const bibleStudySiblings = finalSong.prevUntil(bibleStudyHeadline);
+    const bibleStudySiblings = closingSong.prevUntil(bibleStudyHeadline);
     const bibleStudy = bibleStudySiblings.add(bibleStudyHeadline);
     return { christianLiving, bibleStudy };
 }
@@ -110,8 +113,8 @@ function getAndValidateChristianLivingSelections($, middleSong, finalSong) {
  * @returns {ChristianLivingSelections}
  */
 export function buildChristianLivingSelections($) {
-    const { middleSong, finalSong } = getAndValidateSongSelections($);
-    return getAndValidateChristianLivingSelections($, middleSong, finalSong);
+    const { middleSong, closingSong } = getAndValidateSongSelections($);
+    return getAndValidateChristianLivingSelections($, middleSong, closingSong);
 }
 
 /**
@@ -157,6 +160,8 @@ function buildAndValidateHeadlineSelections($) {
 /**
  * @typedef {Object} RelevantProgramGroupSelections
  * @property {Cheerio} introduction - The introduction selection.
+ * @property {Cheerio} [songs] - A cheerio selection including all the songs.
+ * @property {Cheerio} [startingSong] - The starting song selection.
  * @property {Cheerio} [treasuresTalk] - The treasures talk selection.
  * @property {Cheerio} [spiritualGems] - The spiritual gems' selection.
  * @property {Cheerio} [bibleRead] - The bible read selection.
@@ -164,7 +169,7 @@ function buildAndValidateHeadlineSelections($) {
  * @property {Cheerio} [middleSong] - The middle song selection.
  * @property {Cheerio} [christianLiving] - The christian living selection.
  * @property {Cheerio} [bibleStudy] - The bible study selection.
- * @property {Cheerio} [finalSong] - The final song selection.
+ * @property {Cheerio} [closingSong] - The final song selection.
  */
 
 /**
@@ -174,14 +179,16 @@ function buildAndValidateHeadlineSelections($) {
  * @throws {Error} If the DOM structure is not as expected.
  */
 export function buildRelevantProgramGroupSelections($) {
-    const {fieldMinistryHeadline, christianLivingHeadline} = buildAndValidateHeadlineSelections($);
-    const { middleSong, finalSong } = getAndValidateSongSelections($);
+    const { fieldMinistryHeadline, christianLivingHeadline } = buildAndValidateHeadlineSelections($);
+    const { songs, startingSong, middleSong, closingSong } = getAndValidateSongSelections($);
     const { treasuresTalk, spiritualGems, bibleRead } = getAndValidateGodsTreasuresSelections($, fieldMinistryHeadline);
     const { fieldMinistry } = getAndValidateFieldMinistrySelection(fieldMinistryHeadline, christianLivingHeadline);
-    const { christianLiving, bibleStudy } = getAndValidateChristianLivingSelections($, middleSong, finalSong);
+    const { christianLiving, bibleStudy } = getAndValidateChristianLivingSelections($, middleSong, closingSong);
 
     return {
         introduction: $(CONSTANTS.INTRODUCTION_CSS_SELECTOR),
+        songs,
+        startingSong,
         treasuresTalk,
         spiritualGems,
         bibleRead,
@@ -189,6 +196,6 @@ export function buildRelevantProgramGroupSelections($) {
         middleSong,
         christianLiving,
         bibleStudy,
-        finalSong,
+        closingSong,
     };
 }

@@ -8,16 +8,20 @@ import {
 import {
     buildAnchorRefExtractionData,
     detectReferenceDataType,
+    fetchAnchorData,
     fetchAnchorReferenceData,
     fetchAndParseAnchorReferenceOrThrow,
     isJsonContentAcceptableForReferenceExtraction
 } from "./tooltip_data_retriever.mjs";
 import CONSTANTS from "../core/constants.mjs";
 import {
-    buildRelevantProgramGroupSelections,
+    getAndValidateSongSelections,
     buildGodsTreasuresSelections,
-    buildFieldMinistrySelections, buildChristianLivingSelections
+    buildFieldMinistrySelections,
+    buildChristianLivingSelections,
+    buildRelevantProgramGroupSelections,
 } from "./pub_mwb_program_selection_groups.mjs";
+import {parsePubSjj} from "../core/reference_text_parser.mjs";
 
 const log = logger.child(logger.bindings());
 
@@ -67,6 +71,62 @@ export function extractWeekDateSpan(input) {
     const result = $el.text().toLowerCase();
     log.info(`Extracted week date span: [${result}]`);
     return result;
+}
+
+/**
+ * @typedef {Object} SongData
+ * @property {number} songNumber - The song number.
+ * @property {PubSjjParsedData} songData - The parsed song data.
+ */
+
+/**
+ * Extracts the song data from the given input.
+ * @param {ExtractionInput} input The input object necessary values for correct extraction.
+ * @returns {Promise<SongData[]>} The extracted data.
+ * @throws {Error} If the extraction fails.
+ */
+export function extractSongData(input) {
+    input.selectionBuilder = ($) => getAndValidateSongSelections($).songs;
+    const {$, selection: $songsSelection} = processExtractionInput(input);
+    const $songAnchors = $songsSelection.map((_, anchor) => $(anchor).find('a'));
+    if ($songAnchors.length !== 3) {
+        const msg = `Expected 3 song anchors, found [${$songAnchors.length}]. The document structure may have changed.`;
+        log.error(msg);
+        throw new Error(msg);
+    }
+
+    const promises = $songAnchors.map(async function mapAnchorToSongData(_, anchor) {
+        const $anchor = $(anchor);
+        const text = cleanText($anchor.text());
+        const songNumber = text.match(/\d+/);
+        if (!songNumber || songNumber.length !== 1) {
+            const msg = `Expected song number, found [${text}]. The document structure may have changed.`;
+            log.error(msg);
+            throw new Error(msg);
+        }
+
+        const songNumberNumber = parseInt(songNumber[0], 10);
+
+        const [err, songRefData] = await fetchAnchorData($anchor);
+        if (err) {
+            throw err;
+        }
+
+        if (!isJsonContentAcceptableForReferenceExtraction(songRefData)) {
+            const msg = `The song data extracted from the tooltip is eligible for reference extraction. The document structure may have changed.`;
+            log.error(msg);
+            throw new Error(msg);
+        }
+        const [itemData] = songRefData.items;
+        const songData = parsePubSjj(itemData.content);
+
+        return {
+            songNumber: songNumberNumber,
+            songData,
+        };
+    }).toArray();
+
+    return Promise.all(promises);
 }
 
 /**
@@ -545,6 +605,7 @@ export function extractChristianLiving(input) {
         result = collapseConsecutiveLineBreaks(result);
         return result;
     }
+
     function takeOutTimeBoxText(text) {
         text = text.join('\n');
         return text.split(')').slice(1).join(')').trim();
@@ -632,12 +693,14 @@ export async function extractFullWeekProgram(input) {
     const bibleStudy = extractBibleStudy({$, selection: programGroups.bibleStudy});
 
     const [
+        [startingSong, middleSong, closingSong],
         weeklyBibleReadData,
         treasuresTalk,
         spiritualGems,
         bibleRead,
         fieldMinistry,
     ] = await Promise.all([
+        extractSongData({$, selection: programGroups.songs}),
         extractWeeklyBibleRead({$, selection: programGroups.bibleRead}),
         extractTreasuresTalk({$, selection: programGroups.treasuresTalk}),
         extractSpiritualGems({$, selection: programGroups.spiritualGems}),
@@ -647,13 +710,16 @@ export async function extractFullWeekProgram(input) {
 
     const result = {
         weekDateSpan,
+        startingSong: startingSong,
         weeklyBibleReadData,
         treasuresTalk,
         spiritualGems,
         bibleRead,
         fieldMinistry,
+        middleSong: middleSong,
         christianLiving,
         bibleStudy,
+        closingSong: closingSong,
     };
 
     log.info("Successfully extracted full week program");

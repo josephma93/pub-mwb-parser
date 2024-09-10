@@ -38,6 +38,29 @@ export function parseDefault(content) {
 }
 
 /**
+ * @typedef {Object} PubSjjParsedData
+ * @property {string} name - The name of the song.
+ * @property {string} themeScripture - The base scripture of the song.
+ * @property {string} content - The song lyrics.
+ * @property {string} closingContent - The closing content scripture references.
+ */
+
+/**
+ * Parses the given HTML content and returns the parsed data.
+ * @param {string} content - The HTML content to parse.
+ * @returns {PubSjjParsedData} SJJ parsed data.
+ */
+export function parsePubSjj(content) {
+    const $ = cheerio.load(content);
+    return {
+        name: cleanText($('#p2').text()),
+        themeScripture: cleanText($('#p3').text()).match(/\(([\s\S]+?)\)/)[1],
+        content: cleanText($('.bodyTxt').text()),
+        closingContent: cleanText($('.closingContent').text()).match(/\(([\s\S]+?)\)/)[1],
+    };
+}
+
+/**
  * @param {PublicationRefDetectionData} contentDetectionData
  * @param {string} contentToParse
  * @returns {string}

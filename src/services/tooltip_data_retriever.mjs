@@ -170,6 +170,33 @@ function parseAnchorRefDataOrThrow(fetchedReferenceJson) {
 }
 
 /**
+ * Fetches the JSON reference content from the WOL website given the anchor reference extraction data.
+ *
+ * @param {ReturnType<CheerioAPI>} $anchor - The cheerio element for the anchor reference to fetch.
+ * @returns {Promise<Error | Object>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is the JSON content (or null if an error occurred).
+ */
+async function _fetchAnchorData($anchor) {
+    const anchorRefExtractionData = buildAnchorRefExtractionData($anchor);
+    const [err, json] = await fetchAnchorReferenceData(anchorRefExtractionData);
+    if (err) {
+        return err;
+    }
+
+    return json;
+}
+
+/**
+ * Fetches the JSON reference content from the WOL website given the anchor reference extraction data.
+ *
+ * @param {Cheerio} $anchor - The cheerio element for the anchor reference to fetch.
+ * @returns {Promise<ErrorTuple | SuccessTuple<PublicationRefData>>} A promise that resolves to a tuple where the first element is an
+ *      Error object (or null if no error occurred) and the second element is the JSON content (or null if an error occurred).
+ * @see _fetchAnchorData
+ */
+export const fetchAnchorData = withErrorHandling(_fetchAnchorData);
+
+/**
  * Fetches an anchor reference data and attempts to parse it.
  * @param {ReturnType<CheerioAPI>} $anchor - The cheerio element for the anchor reference to fetch.
  * @returns {Promise<Error | PublicationRefData>}

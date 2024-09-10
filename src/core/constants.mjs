@@ -7,6 +7,7 @@ const CONSTANTS = Object.freeze(Object.seal({
     LINE_WITH_TIME_BOX_CSS_SELECTOR: '.du-color--textSubdued',
     LINE_WITH_SECTION_NUMBER_CSS_SELECTOR: '> h3',
 
+    STARTING_SONG_CSS_SELECTOR: '.bodyTxt > #p3',
     MIDDLE_SONG_CSS_SELECTOR: '.bodyTxt > .dc-icon--music:not(:first-child)',
     FINAL_SONG_CSS_SELECTOR: '.bodyTxt > h3:last-child',
 
