@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { processExtractionInput } from "../../src/services/pub_mwb_scraper.mjs";
+import {extractWeekDateSpan, processExtractionInput} from "../../src/services/pub_mwb_scraper.mjs";
 
 describe('processExtractionInput', () => {
   it('should throw an error if neither HTML nor Cheerio object is provided', () => {
@@ -37,5 +37,22 @@ describe('processExtractionInput', () => {
     expect(result.$('h1').text()).toBe('Hello, world!');
     expect(result.html).toBe(html);
     expect(result.selection.html()).toBe(selectionBuilder(result.$).html());
+  });
+});
+
+describe('extractWeekDateSpan', () => {
+  it('should throw if week date span is not found', () => {
+    const $ = cheerio.load('<html><body>hey</body></html>');
+    expect(() => extractWeekDateSpan({$})).toThrow();
+  });
+
+  it('should extract week date span from Cheerio object', () => {
+    const $ = cheerio.load('<div id="p1">Week 1: 2022-01-01 - 2022-01-07</div>');
+    expect(extractWeekDateSpan({ $ })).toBe('week 1: 2022-01-01 - 2022-01-07');
+  });
+
+  it('should lowercase week date span', () => {
+    const $ = cheerio.load('<div id="p1">WEEK 1: 2022-01-01 - 2022-01-07</div>');
+    expect(extractWeekDateSpan({ $ })).toBe('week 1: 2022-01-01 - 2022-01-07');
   });
 });
