@@ -205,8 +205,7 @@ export const fetchAnchorData = withErrorHandling(_fetchAnchorData);
  * @throws {Error} If the JSON content doesn't match the expected format.
  */
 async function _fetchAndParseAnchorReferenceOrThrow($anchor) {
-    const anchorRefExtractionData = buildAnchorRefExtractionData($anchor);
-    const [err, json] = await fetchAnchorReferenceData(anchorRefExtractionData);
+    const [err, json] = await fetchAnchorData($anchor);
     if (err) {
         return err;
     }
