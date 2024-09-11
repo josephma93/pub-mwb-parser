@@ -4,10 +4,16 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 
 const stderrStream = pino.destination(2);
 
-// Configuración e inicialización del logger
 const logger = pino(
     {
         level: LOG_LEVEL,
+        formatters: {
+            level(label) {
+                return {level: label};
+            }
+        },
+        base: null,
+        timestamp: pino.stdTimeFunctions.isoTime,
     },
     stderrStream
 );

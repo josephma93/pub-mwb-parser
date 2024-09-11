@@ -4,7 +4,7 @@ import {
     cleanText,
     collapseConsecutiveLineBreaks,
     getCheerioSelectionOrThrow,
-} from "../core/util.mjs";
+} from "./support/util.mjs";
 import {
     buildAnchorRefExtractionData,
     detectReferenceDataType,
@@ -12,7 +12,7 @@ import {
     fetchAnchorReferenceData,
     fetchAndParseAnchorReferenceOrThrow,
     isJsonContentAcceptableForReferenceExtraction
-} from "./tooltip_data_retriever.mjs";
+} from "./support/tooltip_data_retriever.mjs";
 import CONSTANTS from "../core/constants.mjs";
 import {
     getAndValidateSongSelections,
@@ -20,8 +20,8 @@ import {
     buildFieldMinistrySelections,
     buildChristianLivingSelections,
     buildRelevantProgramGroupSelections,
-} from "./pub_mwb_program_selection_groups.mjs";
-import {parsePubSjj} from "../core/reference_text_parser.mjs";
+} from "./support/pub_mwb_program_selection_groups.mjs";
+import {parsePubSjj} from "./support/reference_text_parser.mjs";
 
 const log = logger.child(logger.bindings());
 

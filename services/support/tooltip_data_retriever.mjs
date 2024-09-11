@@ -1,8 +1,8 @@
-import logger from "../core/logger.mjs";
-import CONSTANTS from "../core/constants.mjs";
-import {withErrorHandling} from "../core/util.mjs";
-import {getJsonContent} from "../core/retrievers.mjs";
-import {pickAndApplyParsingLogic} from "../core/reference_text_parser.mjs";
+import logger from "../../core/logger.mjs";
+import CONSTANTS from "../../core/constants.mjs";
+import {withErrorHandling} from "./util.mjs";
+import {getJsonContent} from "./retrievers.mjs";
+import {pickAndApplyParsingLogic} from "./reference_text_parser.mjs";
 
 const log = logger.child(logger.bindings());
 

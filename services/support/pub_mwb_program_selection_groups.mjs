@@ -1,5 +1,5 @@
-import logger from "../core/logger.mjs";
-import CONSTANTS from "../core/constants.mjs";
+import logger from "../../core/logger.mjs";
+import CONSTANTS from "../../core/constants.mjs";
 
 const log = logger.child(logger.bindings());
 

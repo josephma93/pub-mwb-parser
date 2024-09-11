@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import {extractWeekDateSpan, processExtractionInput} from "../../src/services/pub_mwb_scraper.mjs";
+import {extractWeekDateSpan, processExtractionInput} from "../../services/pub_mwb_scraper.mjs";
 
 describe('processExtractionInput', () => {
   it('should throw an error if neither HTML nor Cheerio object is provided', () => {

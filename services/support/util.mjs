@@ -1,4 +1,4 @@
-import logger from "./logger.mjs";
+import logger from "../../core/logger.mjs";
 
 const log = logger.child(logger.bindings());
 

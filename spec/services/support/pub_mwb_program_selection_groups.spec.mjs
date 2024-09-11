@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
-import logger from "../../src/core/logger.mjs";
-import CONSTANTS from "../../src/core/constants.mjs";
-import {getAndValidateSongSelections} from "../../src/services/pub_mwb_program_selection_groups.mjs";
+import logger from "../../../core/logger.mjs";
+import CONSTANTS from "../../../core/constants.mjs";
+import {getAndValidateSongSelections} from "../../../services/support/pub_mwb_program_selection_groups.mjs";
 
 describe('DOM Validation Functions', () => {
     let $;

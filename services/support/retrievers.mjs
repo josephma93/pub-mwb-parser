@@ -1,6 +1,6 @@
-import logger from "./logger.mjs";
+import logger from "../../core/logger.mjs";
 import { withErrorHandling } from "./util.mjs";
-import CONSTANTS from "./constants.mjs";
+import CONSTANTS from "../../core/constants.mjs";
 
 const log = logger.child(logger.bindings());
 
