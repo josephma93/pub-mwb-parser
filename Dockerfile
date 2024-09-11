@@ -43,4 +43,4 @@ EXPOSE $PMP_PORT
 USER node
 
 # Use dumb-init to handle kernel signals and start the application
-ENTRYPOINT ["dumb-init", "node", "./src/app.mjs"]
+ENTRYPOINT ["dumb-init", "node", "app.mjs"]
