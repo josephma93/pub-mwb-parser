@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies
-RUN npm ci
+RUN npm ci --include=prod
 
 # Copy the rest of the application code to the container
 COPY . .
@@ -37,7 +37,7 @@ ENV PMP_PORT=3389
 ENV PMP_LOG_LEVEL=info
 
 # Expose the application port
-EXPOSE $PORT
+EXPOSE $PMP_PORT
 
 # Run as non-root user for security
 USER node
