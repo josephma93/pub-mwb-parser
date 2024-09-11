@@ -4,6 +4,7 @@ import {
     cleanText,
     collapseConsecutiveLineBreaks,
     getCheerioSelectionOrThrow,
+    takeOutTimeBoxText,
 } from "./support/util.mjs";
 import {
     buildAnchorRefExtractionData,
@@ -227,10 +228,10 @@ export async function extractWeeklyBibleRead(input) {
 /**
  * Extracts the section number from the given element's text.
  * @param {Cheerio} $element
- * @returns {number}
+ * @returns {{number: number, headline: string}} The number and the headline of the section.
  * @throws {Error} If the element's text doesn't match the expected format.
  */
-function getSectionNumberFromElement($element) {
+function parseSectionHeadlineDataFromElement($element) {
     log.info("Extracting section number from element");
     const elementText = cleanText($element.text());
     if (!/^\d\./.test(elementText)) {
@@ -238,9 +239,13 @@ function getSectionNumberFromElement($element) {
         log.error(msg);
         throw new Error(msg);
     }
-    const sectionNumber = parseInt(elementText.split('.')[0], 10);
+    const numberAsTxt = elementText.split('.')[0];
+    const sectionNumber = parseInt(numberAsTxt, 10);
     log.info(`Extracted section number: [${sectionNumber}]`);
-    return sectionNumber;
+    return {
+        number: sectionNumber,
+        headline: cleanText(elementText.replace(`${numberAsTxt}.`, '')),
+    };
 }
 
 /**
@@ -258,7 +263,7 @@ function getTimeBoxFromElement($selection) {
         throw new Error(msg);
     }
 
-    const timeMatch = cleanText($lineWithTimeBox.text()).match(/\((\d+)\s*mins?\.\)/);
+    const timeMatch = cleanText($lineWithTimeBox.text()).match(/\((\d+)\s*\S*?\.\)/);
     if (timeMatch) {
         const timeBox = parseInt(timeMatch[1], 10);
         log.info(`Extracted time box: [${timeBox}] minutes`);
@@ -295,11 +300,12 @@ export async function extractTreasuresTalk(input) {
 
     input.selectionBuilder = ($) => buildGodsTreasuresSelections($).treasuresTalk;
     const {selection: $treasuresTalkSelection} = processExtractionInput(input);
+    const headlineData = parseSectionHeadlineDataFromElement($treasuresTalkSelection.find(CONSTANTS.LINE_WITH_SECTION_NUMBER_CSS_SELECTOR));
 
     const result = {
-        sectionNumber: getSectionNumberFromElement($treasuresTalkSelection.find(CONSTANTS.LINE_WITH_SECTION_NUMBER_CSS_SELECTOR)),
+        sectionNumber: headlineData.number,
         timeBox: getTimeBoxFromElement($treasuresTalkSelection),
-        heading: cleanText($treasuresTalkSelection.find(`h3`).text()),
+        heading: headlineData.headline,
         points: [],
         footnotes: {},
     };
@@ -359,6 +365,7 @@ export async function extractTreasuresTalk(input) {
  * @typedef {Object} SpiritualGemsData
  * @property {number} sectionNumber - The meeting section number.
  * @property {number} timeBox - The time box for the section.
+ * @property {string} heading - The heading for the section.
  * @property {PrintedQuestion} printedQuestionData - The printed question details, including answer sources and scripture references.
  * @property {string} openEndedQuestion - The open-ended question text.
  */
@@ -422,10 +429,12 @@ export async function extractSpiritualGems(input) {
         });
         log.debug(`Added answer source [${i + 1}] for mnemonic [${printedQuestionData.answerSources[printedQuestionData.answerSources.length - 1].mnemonic}]`);
     }
+    const headlineData = parseSectionHeadlineDataFromElement($spiritualGemsSelection.eq(0));
 
     const result = {
-        sectionNumber: getSectionNumberFromElement($spiritualGemsSelection.eq(0)),
+        sectionNumber: headlineData.number,
         timeBox: getTimeBoxFromElement($content),
+        headline: headlineData.headline,
         printedQuestionData,
         openEndedQuestion: cleanText($content.find(`li.du-margin-top--8 p`).text()),
     };
@@ -444,6 +453,7 @@ export async function extractSpiritualGems(input) {
  * @typedef {Object} BibleReadData
  * @property {number} sectionNumber - The meeting section number.
  * @property {number} timeBox - The time box for the section.
+ * @property {string} headline - The section headline.
  * @property {string} scriptureMnemonic - A mnemonic or reference for the scripture passage.
  * @property {string} scriptureContents - The full text of the scripture passage.
  * @property {StudyPoint} studyPoint - The details of the study point associated with the study lesson.
@@ -461,9 +471,11 @@ export async function extractBibleRead(input) {
     input.selectionBuilder = ($) => buildGodsTreasuresSelections($).bibleRead;
     const {selection: $bibleReadSelection} = processExtractionInput(input);
     const $content = $bibleReadSelection.eq(1);
+    const headlineData = parseSectionHeadlineDataFromElement($bibleReadSelection.eq(0));
     const result = {
-        sectionNumber: getSectionNumberFromElement($bibleReadSelection.eq(0)),
+        sectionNumber: headlineData.number,
         timeBox: getTimeBoxFromElement($content),
+        headline: headlineData.headline,
         scriptureMnemonic: '',
         scriptureContents: '',
         studyPoint: {
@@ -548,13 +560,14 @@ export async function extractFieldMinistry(input) {
 
     const promises = assignmentGroups.map(async ({heading, contents: [assignmentContents]}) => {
         const contentsText = cleanText(assignmentContents.text());
+        const headlineData = parseSectionHeadlineDataFromElement(heading);
         const result = {
-            sectionNumber: getSectionNumberFromElement(heading),
+            sectionNumber: headlineData.number,
             timeBox: getTimeBoxFromElement(assignmentContents),
             // Student tasks have a time inside parentheses and a study point inside parentheses.
             isStudentTask: /\(.*?\).*?\(.*?\)/.test(contentsText),
-            headline: cleanText(heading.text()).slice(3),
-            contents: contentsText,
+            headline: headlineData.headline,
+            contents: takeOutTimeBoxText(contentsText),
             studyPoint: null,
         };
 
@@ -610,21 +623,18 @@ export function extractChristianLiving(input) {
         return result;
     }
 
-    function takeOutTimeBoxText(text) {
-        text = text.join('\n');
-        return text.split(')').slice(1).join(')').trim();
-    }
-
     log.info("Extracting Christian Living section data");
     input.selectionBuilder = ($) => buildChristianLivingSelections($).christianLiving
     const {$, selection: $christianLivingSelection} = processExtractionInput(input);
     const sectionGroups = buildHeadlineToContentGroups($christianLivingSelection, $);
 
     return sectionGroups.map(({heading, contents}) => {
+        const headlineData = parseSectionHeadlineDataFromElement(heading);
         const result = {
-            sectionNumber: getSectionNumberFromElement(heading),
+            sectionNumber: headlineData.number,
             timeBox: getTimeBoxFromElement(contents[0]),
-            contents: takeOutTimeBoxText(contents.map(polishElementText)),
+            headline: headlineData.headline,
+            contents: takeOutTimeBoxText(contents.map(polishElementText).join('\n')),
         };
         log.info(`Extracted Christian Living section`);
         return result;
@@ -635,6 +645,7 @@ export function extractChristianLiving(input) {
  * @typedef {Object} CongregationBibleStudyData
  * @property {number} sectionNumber - The meeting section number.
  * @property {number} timeBox - The time box for the section.
+ * @property {string} headline - The headline of the section.
  * @property {string} contents - The content of the ministry task.
  * @property {string[]} references - The references to be covered during the study.
  */
@@ -649,11 +660,13 @@ export function extractBibleStudy(input) {
     log.info("Extracting Bible study section data");
     input.selectionBuilder = ($) => buildChristianLivingSelections($).bibleStudy;
     const {$, selection: $bibleStudySelection} = processExtractionInput(input);
+    const headlineData = parseSectionHeadlineDataFromElement($bibleStudySelection.eq(0));
 
     const result = {
-        sectionNumber: getSectionNumberFromElement($bibleStudySelection.eq(0)),
+        sectionNumber: headlineData.number,
         timeBox: getTimeBoxFromElement($bibleStudySelection),
-        contents: cleanText($bibleStudySelection.text()),
+        headline: headlineData.headline,
+        contents: cleanText(takeOutTimeBoxText($bibleStudySelection.eq(1).text())),
         references: $bibleStudySelection.eq(1)
             .find('a')
             .map((i, el) => {

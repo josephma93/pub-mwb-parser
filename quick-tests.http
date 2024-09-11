@@ -1,0 +1,80 @@
+### This week program: check response status is 200 and content-type is json
+GET http://localhost:3389/this-week-program
+Accept: application/json
+
+> {%
+    client.test("Request executed successfully", function () {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+
+    client.test("Response content-type is json", function () {
+        const type = response.contentType.mimeType;
+        client.assert(type === "application/json", `Expected 'application/json' but received '${type}'`);
+    });
+%}
+
+### Landing HTML: check response status is 200, content-type is json, and contains 'html' key
+GET http://localhost:3389/source-html/landing-html
+Accept: application/json
+
+> {%
+    client.test("Request executed successfully", function () {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+
+    client.test("Response content-type is json", function () {
+        const type = response.contentType.mimeType;
+        client.assert(type === "application/json", `Expected 'application/json' but received '${type}'`);
+    });
+
+    client.test("Response contains 'html' key", function () {
+        client.assert(response.body.hasOwnProperty('html'), "The 'html' key is missing in the JSON response");
+    });
+%}
+
+### Meeting HTML: check response status is 200, content-type is json, and store response body
+GET http://localhost:3389/source-html/meeting-html
+Accept: application/json
+
+> {%
+    client.test("Request executed successfully", function () {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+
+    client.test("Response content-type is json", function () {
+        const type = response.contentType.mimeType;
+        client.assert(type === "application/json", `Expected 'application/json' but received '${type}'`);
+    });
+
+    client.test("Response contains 'html' key", function () {
+        client.assert(response.body.hasOwnProperty('html'), "The 'html' key is missing in the JSON response");
+    });
+
+    // Clear all global variables before setting a new one
+    client.global.clearAll();
+
+    // Store the full response body, as it's already valid for the next request
+    client.global.set("weekMeetingHtml", response.body);
+%}
+
+### Scrape week date span: check response status is 200, content-type is json, and send stored response as request body
+POST http://localhost:3389/scrappers/week-date-span
+Accept: application/json
+Content-Type: application/json
+
+{{weekMeetingHtml}}
+
+> {%
+    client.test("Request executed successfully", function () {
+        client.assert(response.status === 200, "Response status is not 200");
+    });
+
+    client.test("Response content-type is json", function () {
+        const type = response.contentType.mimeType;
+        client.assert(type === "application/json", `Expected 'application/json' but received '${type}'`);
+    });
+
+    client.test("Response contains 'weekDateSpan' key", function () {
+        client.assert(response.body.hasOwnProperty('weekDateSpan'), "The 'weekDateSpan' key is missing in the JSON response");
+    });
+%}

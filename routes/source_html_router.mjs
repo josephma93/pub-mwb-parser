@@ -1,15 +1,15 @@
 import express from 'express';
-import { fetchLandingHtml, fetchThisWeekMeetingHtml } from '../services/html_retriever.mjs'; // Import the functions from the service file
+import {fetchLandingHtml, fetchThisWeekMeetingHtml} from "../services/html_retriever.mjs";
 
 const router = express.Router();
 
 /**
- * GET /source-html/landing-html
- * Fetches the landing page HTML from the WOL website.
+ * GET /source-html/meeting-html
+ * Fetches the HTML for this week's meeting.
  */
-router.get('/landing-html', async (req, res) => {
+router.get('/meeting-html', async (req, res) => {
     try {
-        const [err, html] = await fetchLandingHtml();
+        const [err, html] = await fetchThisWeekMeetingHtml();
         if (err) {
             return res.status(500).json({ error: err.message });
         }
@@ -20,12 +20,12 @@ router.get('/landing-html', async (req, res) => {
 });
 
 /**
- * POST /source-html/meeting-html
- * Fetches the HTML for this week's meeting.
+ * GET /source-html/landing-html
+ * Fetches the landing page HTML from the WOL website.
  */
-router.post('/meeting-html', async (req, res) => {
+router.get('/landing-html', async (req, res) => {
     try {
-        const [err, html] = await fetchThisWeekMeetingHtml();
+        const [err, html] = await fetchLandingHtml();
         if (err) {
             return res.status(500).json({ error: err.message });
         }

@@ -14,5 +14,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/source-html', sourceHtmlRouter);
 app.use('/scrappers', scrappersRouter);
 app.use('/', pubMwbRouter);
+app.get('/ping', (req, res) => {
+    return res.send('pong');
+});
 
 export default app;

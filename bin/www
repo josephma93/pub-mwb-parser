@@ -5,14 +5,13 @@
  */
 
 import app from '../app.mjs';
-import logger from "../core/logger.mjs";
-const http = require('http');
+import * as http from "node:http";
 
 /**
  * Get port from environment and store in Express.
  */
 
-const port = normalizePort(process.env.PORT || '3000');
+const port = normalizePort(process.env.PMP_PORT || '0');
 app.set('port', port);
 
 /**
@@ -86,5 +85,5 @@ function onListening() {
   const bind = typeof addr === 'string'
     ? 'pipe ' + addr
     : 'port ' + addr.port;
-  logger.info('Listening on ' + bind);
+  process.stderr.write('Listening on ' + bind + '\n');
 }

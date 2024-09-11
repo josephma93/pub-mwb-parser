@@ -65,7 +65,7 @@ router.post('/songs', checkHtmlContent, async (req, res) => {
  * Extracts Bible reading data from the HTML.
  * Expects raw HTML in the request body.
  */
-router.post('/bible-read', checkHtmlContent, async (req, res) => {
+router.post('/weekly-bible-read', checkHtmlContent, async (req, res) => {
     try {
         const { html } = req.body;
         const bibleReadData = await extractWeeklyBibleRead({ html });

@@ -79,3 +79,12 @@ export function cleanText(txt) {
 export function collapseConsecutiveLineBreaks(txt) {
     return enforceIsString(txt).replaceAll(/\n+/g, '\n');
 }
+
+/**
+ * Removes the time box text from the given text.
+ * @param {string} text - The text to remove the time box text from.
+ * @returns {string} The text with the time box text removed.
+ */
+export function takeOutTimeBoxText(text) {
+    return text.split(')').slice(1).join(')').trim();
+}

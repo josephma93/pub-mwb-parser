@@ -33,8 +33,8 @@ WORKDIR /app
 
 # Set environment variables with defaults
 ENV NODE_ENV=production
-ENV PORT=3002
-ENV LOG_LEVEL=debug
+ENV PMP_PORT=3389
+ENV PMP_LOG_LEVEL=info
 
 # Expose the application port
 EXPOSE $PORT

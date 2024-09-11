@@ -4,8 +4,8 @@
   "main": "app.mjs",
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env ./src/app.mjs",
-    "debug": "node --inspect-brk --env-file=.env ./src/app.mjs",
+    "start": "node --env-file=.env ./bin/www",
+    "debug": "node --inspect-brk --env-file=.env ./bin/www",
     "test": "jasmine"
   },
   "keywords": [],
